@@ -1,0 +1,11 @@
+# 多智能体协作系统依赖
+
+streamlit>=1.35
+pandas>=2.0
+ag2>=0.13
+langchain-community>=0.4
+langchain-text-splitters>=1.1
+chromadb>=1.5
+sentence-transformers>=3.0
+pypdf>=6.0
+Pillow>=10

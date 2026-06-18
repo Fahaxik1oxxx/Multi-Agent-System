@@ -1,0 +1,15 @@
+2.13 大模型多智能体协作系统(Multi-Agent)难度系数★★★★★
+
+项目概述:
+构建由多个专业角色Agent 组成的协作系统,包含规划Agent、执行Agent、检索 Agent、
+总结 Agent,可自动完成复杂任务(如写报告、做方案、分析数据),强调多Agent 调度与工具链协同。
+
+项目内容:
+使用 LangGraph/CrewAI 搭建多智能体框架
+定义角色分工(规划、检索、计算、写作、评审)
+集成 RAG 知识库,支持任务相关资料检索
+实现任务拆解、步骤执行、结果校验闭环
+接入工具集(搜索、计算、文件读写、数据分析)
+输出结构化任务报告与执行日志
+
+所需技术:Python, LangGraph/CrewAI, LLM, RAG, Function Calling, Streamlit

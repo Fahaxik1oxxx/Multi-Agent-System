@@ -1,0 +1,16 @@
+# === Python 缓存 ===
+__pycache__/
+*.pyc
+*.pyo
+
+# === 临时文件 ===
+**/coding/tmp_code_*/
+**/coding/*.png
+_test_*.py
+
+# === 输出产物（可重新运行生成） ===
+**/reports/
+
+# === IDE ===
+.vscode/
+*.swp
