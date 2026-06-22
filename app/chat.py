@@ -49,12 +49,20 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
 
     result = wf.invoke(initial_state)
 
-    raw_messages = result.get("messages", [])
-    thinking = [
-        {"name": m.get("name", m.get("role", "")), "content": m.get("content", "")}
-        for m in raw_messages
-        if m.get("content")
-    ]
+    raw_messages = result.get("agent_messages", [])
+    thinking = []
+    for m in raw_messages:
+        # 兼容 LangChain 消息对象和普通 dict
+        if hasattr(m, "content"):
+            name = getattr(m, "name", "") or getattr(m, "type", "") or ""
+            content = m.content or ""
+        elif isinstance(m, dict):
+            name = m.get("name", m.get("role", ""))
+            content = m.get("content", "")
+        else:
+            continue
+        if content:
+            thinking.append({"name": name, "content": content})
 
     task_type = result.get("task_type", "coding")
     task_type_label = {"coding": "编程", "writing": "写作"}.get(task_type, task_type)

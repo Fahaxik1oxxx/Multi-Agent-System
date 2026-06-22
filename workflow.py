@@ -5,7 +5,7 @@ LangGraph 工作流 —— 快/慢车道多 Agent 编排。
 
 from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
+import operator
 
 
 # ===== 状态定义 =====
@@ -19,7 +19,7 @@ class WorkflowState(TypedDict):
     execution_result: str
     test_result: str
     fix_count: int
-    messages: Annotated[list, add_messages]
+    agent_messages: Annotated[list, operator.add]  # 使用 operator.add 拼接列表
     final_output: str
 
 
@@ -53,7 +53,7 @@ def bot_node(state: WorkflowState) -> dict:
 
     return {
         "final_output": reply,
-        "messages": [{"role": "assistant", "content": reply, "name": "Bot"}],
+        "agent_messages": [{"role": "assistant", "content": reply, "name": "Bot"}],
     }
 
 
@@ -78,7 +78,7 @@ def planner_node(state: WorkflowState) -> dict:
         "plan": plan,
         "task_type": task_type,
         "fix_count": state.get("fix_count", 0),
-        "messages": [{"role": "assistant", "content": plan, "name": "Planner"}],
+        "agent_messages": [{"role": "assistant", "content": plan, "name": "Planner"}],
     }
 
 
@@ -101,7 +101,7 @@ def retriever_node(state: WorkflowState) -> dict:
 
     return {
         "knowledge": knowledge,
-        "messages": [{"role": "assistant", "content": knowledge, "name": "Retriever"}],
+        "agent_messages": [{"role": "assistant", "content": knowledge, "name": "Retriever"}],
     }
 
 
@@ -125,7 +125,7 @@ def coder_node(state: WorkflowState) -> dict:
         "code_or_draft": code_or_draft,
         "fix_count": state.get("fix_count", 0),
         "task_type": state.get("task_type", "coding"),
-        "messages": [{"role": "assistant", "content": code_or_draft, "name": "Coder"}],
+        "agent_messages": [{"role": "assistant", "content": code_or_draft, "name": "Coder"}],
     }
 
 
@@ -149,7 +149,7 @@ def writer_node(state: WorkflowState) -> dict:
         "code_or_draft": code_or_draft,
         "fix_count": state.get("fix_count", 0),
         "task_type": state.get("task_type", "writing"),
-        "messages": [{"role": "assistant", "content": code_or_draft, "name": "Writer"}],
+        "agent_messages": [{"role": "assistant", "content": code_or_draft, "name": "Writer"}],
     }
 
 
@@ -161,7 +161,7 @@ def executor_node(state: WorkflowState) -> dict:
 
     code_blocks = re.findall(r"```(?:python)?\s*\n(.*?)```", code_or_draft, re.DOTALL)
     if not code_blocks:
-        return {"execution_result": "（无代码需要执行）", "messages": []}
+        return {"execution_result": "（无代码需要执行）", "agent_messages": []}
 
     all_results = []
     for i, code in enumerate(code_blocks):
@@ -180,7 +180,7 @@ def executor_node(state: WorkflowState) -> dict:
     combined = "\n\n".join(all_results) if all_results else "（无有效代码块执行）"
     return {
         "execution_result": combined,
-        "messages": [{"role": "assistant", "content": combined, "name": "Executor"}],
+        "agent_messages": [{"role": "assistant", "content": combined, "name": "Executor"}],
     }
 
 
@@ -210,7 +210,7 @@ def tester_node(state: WorkflowState) -> dict:
         "test_result": test_result,
         "fix_count": new_fix_count,
         "task_type": state.get("task_type", "coding"),
-        "messages": [{"role": "assistant", "content": test_result, "name": "Tester"}],
+        "agent_messages": [{"role": "assistant", "content": test_result, "name": "Tester"}],
     }
 
 
@@ -239,7 +239,7 @@ def summarizer_node(state: WorkflowState) -> dict:
 
     return {
         "final_output": final_output,
-        "messages": [{"role": "assistant", "content": final_output, "name": "Summarizer"}],
+        "agent_messages": [{"role": "assistant", "content": final_output, "name": "Summarizer"}],
     }
 
 
