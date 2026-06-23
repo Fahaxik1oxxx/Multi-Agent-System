@@ -1,6 +1,6 @@
 # 多智能体协作系统 v3.0
 
-基于 **LangGraph + LangChain** 的八角色多智能体协作系统，支持编程/写作/分析/问答/闲聊 5 种任务，集成 RAG 知识库、Tesseract OCR、手动快慢车道切换与 Streamlit 专业仪表盘界面。
+基于 **LangGraph + LangChain** 的八角色多智能体协作系统，支持编程/写作/分析/问答/闲聊 5 种任务，集成 RAG 知识库、Tesseract OCR、手动快慢车道切换与 FastAPI + Bootstrap 5 专业仪表盘界面。
 
 ---
 
@@ -50,7 +50,7 @@ pip install -r requirements.txt
 ### 2.3 启动
 
 ```bash
-streamlit run main.py
+uvicorn main:app --reload --port 8501
 ```
 
 浏览器打开 `http://localhost:8501`。
@@ -106,7 +106,7 @@ Planner → Retriever → [Coder|Writer] → Executor → Tester → Summarizer
 | Agent 框架 | **LangGraph ≥0.2**（StateGraph 编排） |
 | Agent 实现 | **LangChain ≥0.3**（create_agent + @tool） |
 | LLM | DeepSeek V4 Flash |
-| 前端 | Streamlit ≥1.35 |
+| 前端 | FastAPI + Jinja2 + Bootstrap 5 |
 | 知识库 | ChromaDB + BAAI/bge-small-zh-v1.5 |
 | OCR | Tesseract + Pillow |
 | 数据分析 | Pandas + Pillow |
@@ -116,7 +116,7 @@ Planner → Retriever → [Coder|Writer] → Executor → Tester → Summarizer
 ## 6 项目结构
 
 ```
-├── main.py              # Streamlit 入口 + 侧边栏 + CSS
+├── main.py              # FastAPI 入口 + 路由 + 启动
 ├── config.py            # 模型配置（MODEL_POOL + ROLE_MODEL）
 ├── workflow.py          # LangGraph 工作流（快/慢车道）
 ├── executor.py          # 代码执行沙箱
@@ -125,9 +125,17 @@ Planner → Retriever → [Coder|Writer] → Executor → Tester → Summarizer
 │
 ├── app/
 │   ├── chat.py          # 聊天管道 + 报告生成
-│   ├── components.py    # Agent 卡片组件
-│   ├── knowledge.py     # 侧边栏知识库 UI
+│   ├── knowledge.py     # 知识库路由 + 管理
 │   └── ocr.py           # Tesseract OCR 模块
+│
+├── templates/
+│   ├── base.html        # Jinja2 基础模板（侧边栏 + 布局）
+│   ├── index.html       # 首页聊天界面
+│   └── components/      # 可复用模板组件
+│
+├── static/
+│   ├── css/             # 自定义 CSS 样式
+│   └── js/              # 前端 JS 交互逻辑
 │
 ├── rag/
 │   ├── knowledge_base.py  # ChromaDB 封装
