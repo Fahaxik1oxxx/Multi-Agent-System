@@ -80,16 +80,11 @@ SYSTEM_PROMPTS = {
 }
 
 
-# ===== Streamlit 缓存（启动优化）=====
+# ===== LLM 缓存 =====
+from functools import lru_cache
+
+
+@lru_cache(maxsize=8)
 def get_cached_llm(role: str, temperature: float = 0.3):
-    """获取缓存的 LLM 实例。在 Streamlit 上下文中自动缓存。"""
-    try:
-        import streamlit as st
-
-        @st.cache_resource
-        def _cached(role: str, temperature: float):
-            return create_llm(role, temperature)
-
-        return _cached(role, temperature)
-    except ImportError:
-        return create_llm(role, temperature)
+    """获取缓存的 LLM 实例。使用 lru_cache 替代 Streamlit st.cache_resource。"""
+    return create_llm(role, temperature)
