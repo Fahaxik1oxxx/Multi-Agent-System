@@ -42,7 +42,7 @@ except AttributeError:
         return "?"
 
 # ──── FastAPI 应用 ────
-app = FastAPI(title="多智能体协作系统", version="4.0")
+app = FastAPI(title="多智能体协作系统", version="3.1")
 
 # ──── 静态文件 & 模板 ────
 app.mount("/static", StaticFiles(directory=os.path.join(_PROJECT_DIR, "static")), name="static")
