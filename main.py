@@ -74,7 +74,7 @@ async def chat(request: Request):
 
     data = await request.json()
     user_input = data.get("message", "")
-    lane_mode = data.get("lane_mode", "slow")
+    lane_mode = data.get("lane_mode", "auto")
     history = data.get("history", [])
 
     try:

@@ -7,9 +7,11 @@
 <!-- 执行模式 -->
 <h6>⚡ 执行模式</h6>
 <div class="btn-group w-100 mb-2" role="group">
+    <input type="radio" class="btn-check" name="lane_mode" id="lane-auto" value="auto" autocomplete="off" checked>
+    <label class="btn btn-outline-info btn-sm" for="lane-auto">🧠 自动</label>
     <input type="radio" class="btn-check" name="lane_mode" id="lane-fast" value="fast" autocomplete="off">
     <label class="btn btn-outline-primary btn-sm" for="lane-fast">🚀 快车道</label>
-    <input type="radio" class="btn-check" name="lane_mode" id="lane-slow" value="slow" autocomplete="off" checked>
+    <input type="radio" class="btn-check" name="lane_mode" id="lane-slow" value="slow" autocomplete="off">
     <label class="btn btn-outline-success btn-sm" for="lane-slow">🔄 慢车道</label>
 </div>
 <div id="lane-status" class="text-center mb-3"></div>

@@ -43,9 +43,11 @@ function setupLaneMode() {
         const el = document.getElementById("lane-status");
         if (!el) return;
         if (mode === "fast") {
-            el.innerHTML = '<span class="text-primary fw-bold">🚀 快车道</span>';
+            el.innerHTML = '<span class="text-primary fw-bold">🚀 快车道（直接回复）</span>';
+        } else if (mode === "slow") {
+            el.innerHTML = '<span class="text-success fw-bold">🔄 慢车道（多Agent协作）</span>';
         } else {
-            el.innerHTML = '<span class="text-success fw-bold">🔄 慢车道</span>';
+            el.innerHTML = '<span class="text-info fw-bold">🧠 自动（AI 判断）</span>';
         }
     };
     document.querySelectorAll("input[name='lane_mode']").forEach(r => {
@@ -70,7 +72,7 @@ function setupChatForm() {
 
 // ===== 发送消息 =====
 async function sendMessage(message) {
-    const laneMode = document.querySelector("input[name='lane_mode']:checked")?.value || "slow";
+    const laneMode = document.querySelector("input[name='lane_mode']:checked")?.value || "auto";
 
     appendUserMessage(message);
 
@@ -119,7 +121,7 @@ function appendAssistantMessage(data) {
     const div = document.createElement("div");
     div.className = "message-assistant";
 
-    // Thinking 区域
+    // Thinking 区域（可折叠）
     let thinkingHtml = "";
     if (data.thinking && data.thinking.length > 0) {
         const flow = data.thinking
@@ -131,10 +133,23 @@ function appendAssistantMessage(data) {
             .map(m => renderAgentCard(m))
             .join("");
 
+        const collapseId = "thinking-" + Date.now();
         thinkingHtml = `
             <div class="thinking-section mb-2">
-                <div class="agent-flow">🧠 ${flow}</div>
-                ${cardsHtml}
+                <button class="thinking-toggle" onclick="
+                    var el=document.getElementById('${collapseId}');
+                    var icon=this.querySelector('.toggle-icon');
+                    if(el.style.display==='none'){el.style.display='block';icon.textContent='▼';}
+                    else{el.style.display='none';icon.textContent='▶';}
+                " style="
+                    width:100%; text-align:left; border:none; background:none;
+                    padding:4px 0; cursor:pointer; font-size:0.85rem; color:#6b7280;
+                ">
+                    <span class="toggle-icon">▶</span> 🧠 ${flow}
+                </button>
+                <div id="${collapseId}" class="thinking-collapse" style="display:none;">
+                    ${cardsHtml}
+                </div>
             </div>
         `;
     }
