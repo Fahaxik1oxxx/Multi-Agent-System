@@ -56,11 +56,14 @@ app.include_router(knowledge_router, prefix="/api/knowledge", tags=["知识库"]
 @app.get("/", response_class=HTMLResponse, tags=["页面"])
 async def index(request: Request):
     """聊天主页"""
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "role_model": ROLE_MODEL,
-        "get_model_display": get_model_display,
-    })
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={
+            "role_model": ROLE_MODEL,
+            "get_model_display": get_model_display,
+        },
+    )
 
 
 @app.post("/api/chat", tags=["聊天"])
