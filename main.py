@@ -28,6 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import config as _cfg
+from db import Database
 
 try:
     get_model_display = _cfg.get_model_display
@@ -157,74 +158,88 @@ async def delete_model(model_name: str):
     return JSONResponse({"status": "ok"})
 
 
-# ──── 会话管理（JSON 文件存储，后续可换数据库）────
+# ──── 会话管理（SQLite）────
 
-import json, time
-_SESSION_FILE = os.path.join(os.path.dirname(__file__), "sessions.json")
-
-
-def _load_sessions() -> dict:
-    try:
-        with open(_SESSION_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-
-def _save_sessions(data: dict):
-    with open(_SESSION_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def _get_db(request: Request):
+    return request.app.state.db
 
 
 @app.get("/api/sessions")
-async def list_sessions():
-    """列出所有会话（摘要信息）"""
-    all_sessions = _load_sessions()
-    summary = []
-    for sid, s in all_sessions.items():
-        if s.get("messages"):
-            first = s["messages"][0].get("content", "")[:50]
-            summary.append({
-                "id": sid,
-                "title": first or "空对话",
-                "count": len(s["messages"]),
-                "updated": s.get("updated", ""),
-            })
-    summary.sort(key=lambda x: x["updated"], reverse=True)
+async def list_sessions(request: Request, user_id: str = ""):
+    """列出指定用户的会话摘要"""
+    db = _get_db(request)
+    if not user_id:
+        return JSONResponse([])
+    summary = db.list_sessions(user_id)
     return JSONResponse(summary)
 
 
 @app.post("/api/sessions")
 async def save_session(request: Request):
-    """保存会话"""
+    """保存/创建会话"""
+    db = _get_db(request)
     data = await request.json()
-    sid = data.get("id") or str(int(time.time() * 1000))
-    all_sessions = _load_sessions()
-    all_sessions[sid] = {
-        "messages": data.get("messages", []),
-        "updated": time.strftime("%Y-%m-%d %H:%M"),
-    }
-    _save_sessions(all_sessions)
-    return JSONResponse({"id": sid, "status": "ok"})
+    sid = data.get("id") or str(int(__import__("time").time() * 1000))
+    user_id = data.get("user_id", "")
+    title = data.get("title", "")
+    result = db.save_session(sid, user_id, data.get("messages", []), title)
+    return JSONResponse(result)
 
 
 @app.get("/api/sessions/{session_id}")
-async def get_session(session_id: str):
+async def get_session(request: Request, session_id: str):
     """获取单个会话的完整消息"""
-    all_sessions = _load_sessions()
-    s = all_sessions.get(session_id)
+    db = _get_db(request)
+    s = db.get_session(session_id)
     if not s:
         return JSONResponse({"error": "会话不存在"}, status_code=404)
-    return JSONResponse(s)
+    # 向后兼容：保持旧响应格式（不含 user_id 顶层字段）
+    return JSONResponse({
+        "messages": s["messages"],
+        "updated": s["updated"],
+    })
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(request: Request, session_id: str):
     """删除会话"""
-    all_sessions = _load_sessions()
-    all_sessions.pop(session_id, None)
-    _save_sessions(all_sessions)
+    db = _get_db(request)
+    deleted = db.delete_session(session_id)
+    if not deleted:
+        return JSONResponse({"error": "会话不存在"}, status_code=404)
     return JSONResponse({"status": "ok"})
+
+
+# ──── 用户管理 ────
+
+@app.post("/api/users")
+async def create_user(request: Request):
+    """创建用户（幂等），返回 {user_id, name}"""
+    db = _get_db(request)
+    data = await request.json()
+    name = data.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "用户名不能为空"}, status_code=400)
+    user = db.create_user(name)
+    return JSONResponse({"user_id": user["id"], "name": user["name"]})
+
+
+@app.get("/api/users")
+async def get_user(request: Request, name: str = ""):
+    """按名称查找用户"""
+    db = _get_db(request)
+    if not name:
+        return JSONResponse({"error": "缺少 name 参数"}, status_code=400)
+    user = db.get_user(name.strip())
+    if not user:
+        return JSONResponse({"error": "用户不存在"}, status_code=404)
+    return JSONResponse({"user_id": user["id"], "name": user["name"]})
+
+
+# ──── 启动事件 ────
+@app.on_event("startup")
+async def startup():
+    app.state.db = Database(os.path.join(_PROJECT_DIR, "data.db"))
 
 
 # ──── 启动 ────
