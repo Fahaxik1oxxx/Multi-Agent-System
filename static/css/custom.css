@@ -1,40 +1,20 @@
-/* ===== 侧边栏 ===== */
+/* 自定义样式 */
 .sidebar {
-    background-color: #1a1f36;
-    color: #e0e0e0;
-    min-width: 300px;
+    background-color: #F9FAFB;
+    min-width: 280px;
     max-width: 320px;
     overflow-y: auto;
 }
 
-.sidebar h4, .sidebar h5, .sidebar h6 {
-    color: #ffffff;
-}
-
-.sidebar hr {
-    border-color: #2d3348;
-}
-
-.sidebar .btn-outline-secondary {
-    color: #a0a0b8;
-    border-color: #3d4260;
-}
-
-.sidebar .btn-outline-secondary:hover {
-    background-color: #2d3348;
-    color: #ffffff;
-}
-
-/* ===== 聊天区 ===== */
 #chat-messages {
     background-color: #f8f9fc;
 }
 
 .chat-input-area {
     background-color: #ffffff;
+    border-top: 1px solid #e5e7eb;
 }
 
-/* ===== 消息气泡 ===== */
 .message-user {
     display: flex;
     justify-content: flex-end;
@@ -72,95 +52,42 @@
     padding: 10px 16px;
 }
 
-/* ===== Agent 卡片 ===== */
-.agent-flow {
+.thinking-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin: 8px 0;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.thinking-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    cursor: pointer;
     font-size: 0.85rem;
     color: #6b7280;
-    margin-bottom: 8px;
+    user-select: none;
 }
 
-.agent-card {
-    border-radius: 8px;
-    border: 1px solid #e8ecf1;
-    margin-bottom: 8px;
+.thinking-header:hover {
+    background-color: #f3f4f6;
+}
+
+.thinking-body {
+    max-height: 0;
     overflow: hidden;
+    transition: max-height 0.2s;
 }
 
-.agent-card .agent-header {
-    padding: 6px 12px;
-    font-weight: 600;
-    font-size: 0.9rem;
+.thinking-body.open {
+    max-height: 500px;
 }
 
-.agent-card .agent-body {
-    padding: 8px 12px;
-    font-size: 0.88rem;
-    max-height: 400px;
+.thinking-body-inner {
+    padding: 0 12px 12px;
     overflow-y: auto;
-}
-
-.agent-card .agent-body pre {
-    font-size: 0.8rem;
-}
-
-/* ===== 思考过程折叠区 ===== */
-.thinking-section {
-    background-color: #f1f5f9;
-    border-radius: 8px;
-    padding: 8px;
-    margin-bottom: 8px;
-}
-
-.thinking-toggle {
-    transition: color 0.2s;
-}
-
-.thinking-toggle:hover {
-    color: #4f8cff !important;
-}
-
-.thinking-collapse {
-    padding-top: 8px;
-    border-top: 1px solid #e2e8f0;
-    margin-top: 4px;
-}
-
-/* ===== 文件展示 ===== */
-.file-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background-color: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    padding: 4px 10px;
-    margin: 2px;
-    font-size: 0.85rem;
-}
-
-.file-badge img {
-    max-height: 20px;
-}
-
-/* ===== 加载动画 ===== */
-.loading-dots::after {
-    content: '';
-    animation: dots 1.5s steps(4, end) infinite;
-}
-
-@keyframes dots {
-    0%   { content: ''; }
-    25%  { content: '.'; }
-    50%  { content: '..'; }
-    75%  { content: '...'; }
-    100% { content: ''; }
-}
-
-/* ===== 响应式 ===== */
-@media (max-width: 768px) {
-    .sidebar {
-        min-width: 100%;
-        max-width: 100%;
-        height: auto;
-    }
+    max-height: 460px;
+    border-top: 1px solid #e5e7eb;
 }

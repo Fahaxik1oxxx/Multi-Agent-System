@@ -21,20 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setupLaneMode();
     setupChatForm();
     setupKnowledgeUI();
-    renderSystemStatus();
 });
-
-// ===== 系统状态 =====
-function renderSystemStatus() {
-    const el = document.getElementById("system-status");
-    if (!el) return;
-    // systemStatus 由 Jinja2 在页面注入为 JSON
-    if (typeof systemStatus !== "undefined") {
-        el.innerHTML = Object.entries(systemStatus)
-            .map(([k, v]) => `<small class="text-muted">${k} · ${v}</small><br>`)
-            .join("");
-    }
-}
 
 // ===== 车道模式 =====
 function setupLaneMode() {
@@ -79,6 +66,10 @@ async function sendMessage(message) {
     const loadingId = appendLoadingMessage();
 
     try {
+        // 读取当前模型配置
+        let modelConfig = {};
+        try { modelConfig = JSON.parse(localStorage.getItem("mc_roles") || "{}"); } catch(e) {}
+
         const resp = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -86,6 +77,7 @@ async function sendMessage(message) {
                 message: message,
                 lane_mode: laneMode,
                 history: messageHistory,
+                model_config: modelConfig,
             }),
         });
 
@@ -301,7 +293,6 @@ function setupKnowledgeUI() {
     });
 }
 
-// ===== 工具函数 =====
 function escapeHtml(text) {
     if (!text) return "";
     const div = document.createElement("div");

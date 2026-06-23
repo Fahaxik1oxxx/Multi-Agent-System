@@ -1,35 +1,218 @@
-<div class="text-center mb-3">
-    <h4 style="color: #4f8cff;">🤖 Multi-Agent</h4>
-    <p class="small" style="opacity: 0.7;">多智能体协作系统</p>
+<!-- 顶部 -->
+<div class="flex items-center justify-between mb-2">
+    <h4 class="text-primary font-bold text-lg">Multi-Agent</h4>
 </div>
-<hr>
 
-<!-- 执行模式 -->
-<h6>⚡ 执行模式</h6>
-<div class="btn-group w-100 mb-2" role="group">
-    <input type="radio" class="btn-check" name="lane_mode" id="lane-auto" value="auto" autocomplete="off" checked>
-    <label class="btn btn-outline-info btn-sm" for="lane-auto">🧠 自动</label>
-    <input type="radio" class="btn-check" name="lane_mode" id="lane-fast" value="fast" autocomplete="off">
-    <label class="btn btn-outline-primary btn-sm" for="lane-fast">🚀 快车道</label>
-    <input type="radio" class="btn-check" name="lane_mode" id="lane-slow" value="slow" autocomplete="off">
-    <label class="btn btn-outline-success btn-sm" for="lane-slow">🔄 慢车道</label>
+<button onclick="newChat()" class="btn btn-outline btn-sm w-full mb-2 gap-2 justify-start">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    开启新对话
+</button>
+
+<!-- 功能分区 -->
+<div class="divider my-1"></div>
+
+<div class="flex-1 overflow-y-auto min-h-0">
+<div class="collapse collapse-arrow bg-base-200 rounded-box mb-1">
+    <input type="checkbox" />
+    <div class="collapse-title text-sm font-medium px-2 min-h-0 py-1.5">添加模型</div>
+    <div class="collapse-content px-2">
+        <input id="md-name" class="input input-bordered input-xs w-full mb-1" placeholder="模型名">
+        <input id="md-url" class="input input-bordered input-xs w-full mb-1" placeholder="API地址">
+        <input id="md-key" type="password" class="input input-bordered input-xs w-full mb-1" placeholder="API Key">
+        <button onclick="addCustomModel()" class="btn btn-primary btn-xs w-full">添加到模型池</button>
+        <div id="custom-models" class="mt-1 text-xs"></div>
+    </div>
 </div>
-<div id="lane-status" class="text-center mb-3"></div>
-<hr>
 
-<!-- 系统状态 -->
-<h6>📊 系统状态</h6>
-<div id="system-status" class="small mb-0"></div>
-<hr>
-
-<!-- 知识库 -->
-<h6>📚 知识库</h6>
-<div class="row mb-2">
-    <div class="col-6"><small class="text-muted">文档: <span id="kb-doc-count">-</span></small></div>
-    <div class="col-6"><small class="text-muted">切片: <span id="kb-chunk-count">-</span></small></div>
+<div class="collapse collapse-arrow bg-base-200 rounded-box mb-1">
+    <input type="checkbox" />
+    <div class="collapse-title text-sm font-medium px-2 min-h-0 py-1.5">角色分配</div>
+    <div class="collapse-content px-2">
+        <div id="role-dropdowns" class="text-xs"></div>
+    </div>
 </div>
-<button id="kb-rebuild-btn" class="btn btn-outline-secondary btn-sm w-100 mb-2">🔄 重建索引</button>
-<label class="w-100 mb-0">
-    <input type="file" id="kb-upload-input" class="form-control form-control-sm"
-           accept=".pdf,.txt,.png,.jpg,.jpeg" style="font-size: 0.8rem;">
-</label>
+
+<div class="collapse collapse-arrow bg-base-200 rounded-box mb-1">
+    <input type="checkbox" />
+    <div class="collapse-title text-sm font-medium px-2 min-h-0 py-1.5">执行模式</div>
+    <div class="collapse-content px-2">
+        <div class="join w-full mb-1">
+            <input type="radio" class="join-item btn btn-xs" name="lane_mode" id="lane-auto" value="auto" checked aria-label="自动" />
+            <input type="radio" class="join-item btn btn-xs" name="lane_mode" id="lane-fast" value="fast" aria-label="快车道" />
+            <input type="radio" class="join-item btn btn-xs" name="lane_mode" id="lane-slow" value="slow" aria-label="慢车道" />
+        </div>
+        <div id="lane-status" class="text-center text-xs"></div>
+    </div>
+</div>
+
+<div class="collapse collapse-arrow bg-base-200 rounded-box mb-1">
+    <input type="checkbox" />
+    <div class="collapse-title text-sm font-medium px-2 min-h-0 py-1.5">知识库</div>
+    <div class="collapse-content px-2">
+        <div class="flex gap-2 mb-1">
+            <div class="flex-1 text-xs opacity-60">文档: <span id="kb-doc-count">-</span></div>
+            <div class="flex-1 text-xs opacity-60">切片: <span id="kb-chunk-count">-</span></div>
+        </div>
+        <button id="kb-rebuild-btn" class="btn btn-outline btn-xs w-full mb-1">重建索引</button>
+        <label class="w-full mb-0">
+            <input type="file" id="kb-upload-input" class="file-input file-input-bordered file-input-xs w-full" accept=".pdf,.txt,.png,.jpg,.jpeg">
+        </label>
+    </div>
+</div>
+
+<div class="divider my-1"></div>
+
+<!-- 历史对话 -->
+<h6 class="font-semibold text-xs mb-1">历史对话</h6>
+<div class="text-xs space-y-1 overflow-y-auto max-h-48">
+    <div class="text-xs opacity-40 mb-0.5">昨天</div>
+    <div class="truncate py-0.5 cursor-pointer hover:opacity-80 opacity-60">电竞奖项区别</div>
+
+    <div class="text-xs opacity-40 mb-0.5 mt-1.5">7天内</div>
+    <div class="truncate py-0.5 cursor-pointer hover:opacity-80 opacity-60">玩机器斗鱼直播</div>
+
+    <div class="text-xs opacity-40 mb-0.5 mt-1.5">30天内</div>
+    <div class="truncate py-0.5 cursor-pointer hover:opacity-80 opacity-60">Agent高效提示词模板</div>
+</div>
+</div>
+
+<!-- 底部用户 -->
+<div class="mt-auto pt-2 flex items-center justify-between">
+    <span class="text-xs opacity-60 truncate cursor-pointer" onclick="document.getElementById('login-modal').showModal()">游客</span>
+    <button class="btn btn-ghost btn-xs" title="登录" onclick="document.getElementById('login-modal').showModal()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/></svg>
+    </button>
+</div>
+
+<!-- 登录/注册弹窗 -->
+<dialog id="login-modal" class="modal">
+    <div class="modal-box">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <h3 class="text-lg font-bold mb-4">登录</h3>
+        <div class="tabs tabs-box mb-4">
+            <a class="tab tab-active" id="tab-login" onclick="switchAuthTab('login')">登录</a>
+            <a class="tab" id="tab-register" onclick="switchAuthTab('register')">注册</a>
+        </div>
+        <div id="auth-form">
+            <input id="auth-email" type="email" class="input input-bordered w-full mb-2" placeholder="邮箱">
+            <input id="auth-password" type="password" class="input input-bordered w-full mb-2" placeholder="密码">
+            <div id="auth-confirm-wrap" class="hidden">
+                <input id="auth-confirm" type="password" class="input input-bordered w-full mb-2" placeholder="确认密码">
+            </div>
+            <button onclick="submitAuth()" class="btn btn-primary w-full" id="auth-btn">登录</button>
+        </div>
+        <p id="auth-msg" class="text-xs text-center mt-2 opacity-60"></p>
+    </div>
+</dialog>
+
+<script>
+const DEFAULT_POOL = ["DeepSeek Flash", "DeepSeek Pro", "Qwen 7B", "GPT-4o Mini", "Claude Haiku"];
+const ROLES = Object.keys(systemStatus || {});
+let customModels = JSON.parse(localStorage.getItem("mc_custom") || "[]");
+let currentRoles = {};
+
+ROLES.forEach(r => { currentRoles[r] = systemStatus[r] || DEFAULT_POOL[0]; });
+const saved = JSON.parse(localStorage.getItem("mc_roles") || "{}");
+Object.keys(saved).forEach(k => { if (k in currentRoles) currentRoles[k] = saved[k]; });
+
+function renderDropdowns() {
+    const pool = [...DEFAULT_POOL, ...customModels.map(m => m.name)];
+    const el = document.getElementById("role-dropdowns");
+    if (!el) return;
+    el.innerHTML = ROLES.map(r => `
+        <div class="flex items-center justify-between gap-1 mb-1">
+            <span class="opacity-70 w-16">${r}</span>
+            <select onchange="updateRole('${r}',this.value)" class="select select-xs select-bordered flex-1 max-w-32">
+                ${pool.map(m => `<option ${m === currentRoles[r] ? "selected" : ""}>${m}</option>`).join("")}
+            </select>
+        </div>
+    `).join("");
+    renderCustomModels();
+}
+
+function updateRole(role, model) {
+    currentRoles[role] = model;
+    localStorage.setItem("mc_roles", JSON.stringify(currentRoles));
+}
+
+function renderCustomModels() {
+    const el = document.getElementById("custom-models");
+    if (!el) return;
+    if (!customModels.length) { el.innerHTML = ""; return; }
+    el.innerHTML = customModels.map((m, i) =>
+        `<span class="badge badge-outline badge-sm mr-1 mb-1">${m.name} <span class="cursor-pointer ml-1 opacity-50" onclick="delModel(${i})">x</span></span>`
+    ).join("");
+}
+
+function addCustomModel() {
+    const name = document.getElementById("md-name").value.trim();
+    const url = document.getElementById("md-url").value.trim();
+    const key = document.getElementById("md-key").value.trim();
+    if (!name) return;
+    customModels.push({ name, url, key });
+    localStorage.setItem("mc_custom", JSON.stringify(customModels));
+    document.getElementById("md-name").value = "";
+    document.getElementById("md-url").value = "";
+    document.getElementById("md-key").value = "";
+    renderDropdowns();
+}
+
+function delModel(i) {
+    customModels.splice(i, 1);
+    localStorage.setItem("mc_custom", JSON.stringify(customModels));
+    renderDropdowns();
+}
+
+function newChat() {
+    document.getElementById("chat-messages").innerHTML = `
+        <div class="text-center opacity-60 my-5 py-5">
+            <h2 class="text-xl font-bold">多智能体协作系统</h2>
+            <p class="text-sm">输入任务开始对话</p>
+        </div>
+    `;
+}
+
+renderDropdowns();
+
+// 登录/注册
+let authMode = "login";
+
+function switchAuthTab(mode) {
+    authMode = mode;
+    document.getElementById("tab-login").classList.toggle("tab-active", mode === "login");
+    document.getElementById("tab-register").classList.toggle("tab-active", mode === "register");
+    document.getElementById("auth-confirm-wrap").classList.toggle("hidden", mode === "login");
+    document.getElementById("auth-btn").textContent = mode === "login" ? "登录" : "注册";
+    document.querySelector("#login-modal h3").textContent = mode === "login" ? "登录" : "注册";
+}
+
+function submitAuth() {
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value.trim();
+    const msg = document.getElementById("auth-msg");
+    if (!email || !password) { msg.textContent = "请填写完整"; return; }
+    if (authMode === "register") {
+        const confirm = document.getElementById("auth-confirm").value.trim();
+        if (password !== confirm) { msg.textContent = "两次密码不一致"; return; }
+        localStorage.setItem("auth_user", JSON.stringify({ email, password }));
+        msg.textContent = "注册成功";
+    } else {
+        const saved = JSON.parse(localStorage.getItem("auth_user") || "{}");
+        if (saved.email === email && saved.password === password) {
+            document.querySelector(".mt-auto .opacity-60").textContent = email;
+            document.getElementById("login-modal").close();
+            msg.textContent = "";
+        } else {
+            msg.textContent = "邮箱或密码错误";
+        }
+    }
+}
+
+// 恢复登录状态
+const savedUser = JSON.parse(localStorage.getItem("auth_user") || "{}");
+if (savedUser.email) {
+    document.querySelector(".mt-auto .opacity-60").textContent = savedUser.email;
+}
+</script>

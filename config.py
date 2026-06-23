@@ -36,7 +36,7 @@ import os
 MODEL_POOL = {
     "a-deepseek": {
         "model": "deepseek-v4-flash",
-        "api_key": os.getenv("MULTI_DEEPSEEK_API_KEY"),
+        "api_key": os.getenv("DEEPSEEK_API_KEY"),
         "base_url": "https://api.deepseek.com/v1",
         "price": [0.001, 0.001],
     },
