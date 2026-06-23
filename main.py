@@ -22,6 +22,8 @@ logging.getLogger().handlers.clear()
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -43,7 +45,13 @@ except AttributeError:
         return "?"
 
 # ──── FastAPI 应用 ────
-app = FastAPI(title="多智能体协作系统", version="3.1")
+@asynccontextmanager
+async def lifespan(a: FastAPI):
+    """启动时初始化数据库，关闭时清理连接"""
+    a.state.db = Database(os.path.join(_PROJECT_DIR, "data.db"))
+    yield
+
+app = FastAPI(title="多智能体协作系统", version="3.1", lifespan=lifespan)
 
 # ──── 静态文件 & 模板 ────
 app.mount("/static", StaticFiles(directory=os.path.join(_PROJECT_DIR, "static")), name="static")
@@ -234,12 +242,6 @@ async def get_user(request: Request, name: str = ""):
     if not user:
         return JSONResponse({"error": "用户不存在"}, status_code=404)
     return JSONResponse({"user_id": user["id"], "name": user["name"]})
-
-
-# ──── 启动事件 ────
-@app.on_event("startup")
-async def startup():
-    app.state.db = Database(os.path.join(_PROJECT_DIR, "data.db"))
 
 
 # ──── 启动 ────
