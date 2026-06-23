@@ -46,6 +46,7 @@ app = FastAPI(title="多智能体协作系统", version="4.0")
 
 # ──── 静态文件 & 模板 ────
 app.mount("/static", StaticFiles(directory=os.path.join(_PROJECT_DIR, "static")), name="static")
+app.mount("/coding", StaticFiles(directory=os.path.join(_PROJECT_DIR, "coding")), name="coding")
 templates = Jinja2Templates(directory=os.path.join(_PROJECT_DIR, "templates"))
 
 # ──── 路由 ────
