@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column h-100">
+    <!-- 消息列表 -->
+    <div id="chat-messages" class="flex-grow-1 overflow-auto p-3">
+        <div class="text-center text-muted my-5 py-5">
+            <h2>🤖 多智能体协作系统</h2>
+            <p>输入任务开始对话 — 支持编程 / 写作 / 分析 / 问答 / 闲聊</p>
+        </div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="chat-input-area border-top p-3">
+        <form id="chat-form" class="d-flex gap-2">
+            <input type="text" id="chat-input" class="form-control form-control-lg"
+                   placeholder="💬 描述你的任务（编程 / 写作 / 分析 / 问答 / 闲聊）"
+                   autofocus autocomplete="off">
+            <button type="submit" class="btn btn-primary px-4">
+                <i class="bi bi-send-fill"></i>
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

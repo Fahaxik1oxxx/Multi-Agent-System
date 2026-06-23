@@ -1,0 +1,33 @@
+<div class="text-center mb-3">
+    <h4 style="color: #4f8cff;">🤖 Multi-Agent</h4>
+    <p class="small" style="opacity: 0.7;">多智能体协作系统</p>
+</div>
+<hr>
+
+<!-- 执行模式 -->
+<h6>⚡ 执行模式</h6>
+<div class="btn-group w-100 mb-2" role="group">
+    <input type="radio" class="btn-check" name="lane_mode" id="lane-fast" value="fast" autocomplete="off">
+    <label class="btn btn-outline-primary btn-sm" for="lane-fast">🚀 快车道</label>
+    <input type="radio" class="btn-check" name="lane_mode" id="lane-slow" value="slow" autocomplete="off" checked>
+    <label class="btn btn-outline-success btn-sm" for="lane-slow">🔄 慢车道</label>
+</div>
+<div id="lane-status" class="text-center mb-3"></div>
+<hr>
+
+<!-- 系统状态 -->
+<h6>📊 系统状态</h6>
+<div id="system-status" class="small mb-0"></div>
+<hr>
+
+<!-- 知识库 -->
+<h6>📚 知识库</h6>
+<div class="row mb-2">
+    <div class="col-6"><small class="text-muted">文档: <span id="kb-doc-count">-</span></small></div>
+    <div class="col-6"><small class="text-muted">切片: <span id="kb-chunk-count">-</span></small></div>
+</div>
+<button id="kb-rebuild-btn" class="btn btn-outline-secondary btn-sm w-100 mb-2">🔄 重建索引</button>
+<label class="w-100 mb-0">
+    <input type="file" id="kb-upload-input" class="form-control form-control-sm"
+           accept=".pdf,.txt,.png,.jpg,.jpeg" style="font-size: 0.8rem;">
+</label>
