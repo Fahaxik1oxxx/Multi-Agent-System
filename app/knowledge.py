@@ -7,6 +7,8 @@ router = APIRouter()
 
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg"}
+
 
 @router.get("/stats")
 async def kb_stats():
@@ -26,7 +28,15 @@ async def kb_upload(file: UploadFile = File(...)):
     doc_dir = os.path.join(_BASE, "rag", "documents")
     os.makedirs(doc_dir, exist_ok=True)
 
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    # Sanitize filename to prevent path traversal
+    safe_name = os.path.basename(file.filename)
+    ext = safe_name.rsplit(".", 1)[-1].lower() if "." in safe_name else ""
+
+    if ext not in ALLOWED_EXTENSIONS:
+        return JSONResponse(
+            {"success": False, "error": f"不支持的文件类型: .{ext}"},
+            status_code=400,
+        )
 
     if ext in ("png", "jpg", "jpeg"):
         try:
@@ -41,8 +51,8 @@ async def kb_upload(file: UploadFile = File(...)):
             if not text.strip():
                 return JSONResponse({"success": False, "error": "图片中未识别到文字"}, status_code=400)
 
-            txt_name = file.filename.rsplit(".", 1)[0] + "_ocr.txt"
-            txt_path = os.path.join(doc_dir, txt_name)
+            txt_name = safe_name.rsplit(".", 1)[0] + "_ocr.txt"
+            txt_path = os.path.join(doc_dir, os.path.basename(txt_name))
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(text)
             return JSONResponse({"success": True, "filename": txt_name, "ocr": True})
@@ -51,18 +61,23 @@ async def kb_upload(file: UploadFile = File(...)):
         except Exception as e:
             return JSONResponse({"success": False, "error": f"OCR 失败: {e}"}, status_code=500)
     else:
-        doc_path = os.path.join(doc_dir, file.filename)
+        doc_path = os.path.join(doc_dir, safe_name)
         contents = await file.read()
         with open(doc_path, "wb") as f:
             f.write(contents)
-        return JSONResponse({"success": True, "filename": file.filename})
+        return JSONResponse({"success": True, "filename": safe_name})
 
 
 @router.delete("/{filename}")
 async def kb_delete(filename: str):
+    # Sanitize filename to prevent path traversal
+    safe_name = os.path.basename(filename)
     doc_dir = os.path.join(_BASE, "rag", "documents")
-    path = os.path.join(doc_dir, filename)
+    path = os.path.join(doc_dir, safe_name)
     if not os.path.exists(path):
         return JSONResponse({"success": False, "error": "文件不存在"}, status_code=404)
-    os.remove(path)
+    try:
+        os.remove(path)
+    except OSError as e:
+        return JSONResponse({"success": False, "error": f"删除失败: {e}"}, status_code=500)
     return JSONResponse({"success": True})
