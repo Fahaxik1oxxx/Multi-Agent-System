@@ -92,6 +92,22 @@ async function sendMessage(message) {
         appendAssistantMessage(data);
         messageHistory.push({ role: "user", content: message });
         messageHistory.push({ role: "assistant", content: data.reply });
+
+        // 自动保存会话到服务端
+        const uid = getUserId();
+        if (uid) {
+            const title = message.length > 20 ? message.substring(0, 20) + "..." : message;
+            fetch("/api/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: "session-" + Date.now(),
+                    user_id: uid,
+                    title: title,
+                    messages: messageHistory,
+                }),
+            }).catch(() => {});
+        }
     } catch (err) {
         removeLoadingMessage(loadingId);
         appendErrorMessage(err.message);
@@ -311,3 +327,76 @@ function markdownToHtml(md) {
     html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
     return html;
 }
+
+// ===== 用户 =====
+function getUserId() {
+    return localStorage.getItem("mc_uid") || "";
+}
+
+function getUserName() {
+    return localStorage.getItem("mc_uname") || "";
+}
+
+// ===== 会话列表加载 =====
+async function loadSessions() {
+    const uid = getUserId();
+    if (!uid) return;
+    try {
+        const resp = await fetch("/api/sessions?user_id=" + encodeURIComponent(uid));
+        if (!resp.ok) return;
+        const sessions = await resp.json();
+        renderSessionList(sessions);
+    } catch { /* 静默失败 */ }
+}
+
+function renderSessionList(sessions) {
+    let container = document.getElementById("session-list");
+    if (!container) return;
+    if (!sessions || !sessions.length) {
+        container.innerHTML = '<div class="text-xs opacity-40">暂无历史会话</div>';
+        return;
+    }
+    container.innerHTML = sessions.map(s =>
+        `<div class="truncate py-0.5 cursor-pointer hover:opacity-80 opacity-60"
+              onclick="loadSession('${s.id}')" title="${escapeHtml(s.title || '')}">
+            ${escapeHtml(s.title || s.id)}
+        </div>`
+    ).join("");
+}
+
+async function loadSession(sessionId) {
+    try {
+        const resp = await fetch("/api/sessions/" + sessionId);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const container = document.getElementById("chat-messages");
+        container.innerHTML = "";
+        messageHistory = [];
+        (data.messages || []).forEach(m => {
+            if (m.role === "user") {
+                appendUserMessage(m.content);
+            } else {
+                const div = document.createElement("div");
+                div.className = "message-assistant";
+                div.innerHTML = `<div class="bubble">${escapeHtml(m.content || "").replace(/\n/g, "<br>")}</div>`;
+                container.appendChild(div);
+            }
+            messageHistory.push(m);
+        });
+        container.scrollTop = container.scrollHeight;
+    } catch { /* 静默失败 */ }
+}
+
+// 页面加载时初始化
+document.addEventListener("DOMContentLoaded", () => {
+    const uid = getUserId();
+    if (uid) loadSessions();
+});
+
+// 覆盖 sidebar.html 中的 newChat（如果存在）
+const _origNewChat = window.newChat;
+window.newChat = function() {
+    if (_origNewChat) _origNewChat();
+    messageHistory = [];
+    loadSessions();
+};
