@@ -1,80 +1,68 @@
-"""侧边栏知识库管理。"""
-
+"""知识库管理 API 路由。"""
 import os
-import streamlit as st
-from rag.knowledge_base import build_index, get_document_list, get_stats
+from fastapi import APIRouter, UploadFile, File
+from fastapi.responses import JSONResponse
+
+router = APIRouter()
+
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def render_knowledge_sidebar():
-    """在侧边栏渲染知识库管理。"""
-    st.markdown("### 📚 知识库")
-    col1, col2 = st.columns(2)
-    stats = get_stats()
-    with col1:
-        st.metric("文档", stats.get("文档数", 0))
-    with col2:
-        st.metric("切片", stats.get("切片数", 0))
+@router.get("/stats")
+async def kb_stats():
+    from rag.knowledge_base import get_stats
+    return JSONResponse(get_stats())
 
-    if st.button("🔄 重建索引", use_container_width=True):
-        with st.spinner("重建中..."):
-            n = build_index()
-        st.success(f"新增 {n} 切片")
-        st.rerun()
 
-    st.markdown("---")
-    uploaded = st.file_uploader(
-        "📤 上传文档 (PDF/TXT/PNG/JPG)",
-        type=["pdf", "txt", "png", "jpg", "jpeg"],
-        accept_multiple_files=False,
-        key="kb_upload",
-    )
-    if uploaded:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        doc_dir = os.path.join(base, "rag", "documents")
-        os.makedirs(doc_dir, exist_ok=True)
+@router.post("/rebuild")
+async def kb_rebuild():
+    from rag.knowledge_base import build_index
+    n = build_index()
+    return JSONResponse({"success": True, "added": n})
 
-        ext = uploaded.name.rsplit(".", 1)[-1].lower()
 
-        if ext in ("png", "jpg", "jpeg"):
-            st.info("🔍 正在 OCR 识别图片文字...")
-            try:
-                from PIL import Image
-                import pytesseract
-                import io
+@router.post("/upload")
+async def kb_upload(file: UploadFile = File(...)):
+    doc_dir = os.path.join(_BASE, "rag", "documents")
+    os.makedirs(doc_dir, exist_ok=True)
 
-                img = Image.open(io.BytesIO(uploaded.getbuffer()))
-                text = pytesseract.image_to_string(img, lang="chi_sim+eng")
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
 
-                if not text.strip():
-                    st.warning("⚠️ 图片中未识别到文字")
-                else:
-                    txt_name = uploaded.name.rsplit(".", 1)[0] + "_ocr.txt"
-                    txt_path = os.path.join(doc_dir, txt_name)
-                    with open(txt_path, "w", encoding="utf-8") as f:
-                        f.write(text)
-                    st.success(f"已 OCR 识别并保存为 {txt_name}")
-            except ImportError:
-                st.error("pytesseract 或 Pillow 未安装")
-            except Exception as e:
-                st.error(f"OCR 失败: {e}")
-        else:
-            doc_path = os.path.join(doc_dir, uploaded.name)
-            with open(doc_path, "wb") as f:
-                f.write(uploaded.getbuffer())
-            st.success(f"已上传 {uploaded.name}")
+    if ext in ("png", "jpg", "jpeg"):
+        try:
+            from PIL import Image
+            import pytesseract
+            import io
 
-        st.rerun()
+            contents = await file.read()
+            img = Image.open(io.BytesIO(contents))
+            text = pytesseract.image_to_string(img, lang="chi_sim+eng")
 
-    docs = get_document_list()
-    if docs:
-        st.markdown("---")
-        st.caption("已上传文档")
-        for doc in docs:
-            c1, c2 = st.columns([5, 1])
-            with c1:
-                st.markdown(f"- {doc}")
-            with c2:
-                if st.button("🗑", key=f"kb_del_{doc}", help="删除"):
-                    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    os.remove(os.path.join(base, "rag", "documents", doc))
-                    st.rerun()
+            if not text.strip():
+                return JSONResponse({"success": False, "error": "图片中未识别到文字"}, status_code=400)
+
+            txt_name = file.filename.rsplit(".", 1)[0] + "_ocr.txt"
+            txt_path = os.path.join(doc_dir, txt_name)
+            with open(txt_path, "w", encoding="utf-8") as f:
+                f.write(text)
+            return JSONResponse({"success": True, "filename": txt_name, "ocr": True})
+        except ImportError as e:
+            return JSONResponse({"success": False, "error": f"依赖未安装: {e}"}, status_code=500)
+        except Exception as e:
+            return JSONResponse({"success": False, "error": f"OCR 失败: {e}"}, status_code=500)
+    else:
+        doc_path = os.path.join(doc_dir, file.filename)
+        contents = await file.read()
+        with open(doc_path, "wb") as f:
+            f.write(contents)
+        return JSONResponse({"success": True, "filename": file.filename})
+
+
+@router.delete("/{filename}")
+async def kb_delete(filename: str):
+    doc_dir = os.path.join(_BASE, "rag", "documents")
+    path = os.path.join(doc_dir, filename)
+    if not os.path.exists(path):
+        return JSONResponse({"success": False, "error": "文件不存在"}, status_code=404)
+    os.remove(path)
+    return JSONResponse({"success": True})
