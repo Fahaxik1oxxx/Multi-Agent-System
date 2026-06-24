@@ -1,4 +1,4 @@
-# 多智能体协作系统 v3.3
+# 多智能体协作系统 v3.4
 
 <div align="center">
 
@@ -62,6 +62,19 @@
 - **知识库隔离**：每个用户独立的 ChromaDB 向量库和文档目录
 - **游客模式**：无需注册即可聊天，对话存浏览器 sessionStorage，关标签页即清除
 - **数据迁移**：游客登录后对话自动迁移到数据库，不丢失历史
+- **Token 过期与续期**：Token 7 天自动过期，使用中自动续期，兼顾安全与体验
+- **登录限流**：同一用户名 5 次失败后 15 分钟禁止登录，防暴力破解
+
+### 🛡️ 安全防护
+
+| 防护层 | 实现方式 |
+|--------|----------|
+| Docker 沙箱 | 代码执行在 Docker 容器中隔离运行，替代 subprocess |
+| 密码哈希 | bcrypt + 随机盐，恒时比较防时序攻击 |
+| 登录限流 | 5 次失败 / 15 分钟锁定，防暴力破解 |
+| SQL 注入防护 | 100% 参数化查询，无字符串拼接 |
+| 路径遍历防护 | `os.path.basename()` 消毒文件名 |
+| Docker 降级 | Docker 不可用时自动降级为 subprocess，系统不中断 |
 
 ---
 
@@ -283,6 +296,7 @@ pytest tests/ -v
 | v3.1 | 06-23 | Streamlit → FastAPI Web，Router 恢复，5 任务类型，exitcode 分支 |
 | v3.2 | 06-24 | daisyUI 前端重构，SQLite 用户/会话持久化，lifespan 启动 |
 | **v3.3** | **06-24** | **用户认证系统（bcrypt + Token），知识库/会话用户隔离，游客 sessionStorage** |
+| **v3.4** | **06-24** | **Docker 沙箱隔离，Token 7 天过期+续期，登录限流，安全防护升级至 10 层** |
 
 ---
 
@@ -298,6 +312,7 @@ pytest tests/ -v
 | 前端交互 | 原生 JavaScript（fetch + DOM） |
 | 数据库 | SQLite（WAL 模式，标准库 sqlite3） |
 | 密码哈希 | bcrypt ≥4.0 |
+| 容器沙箱 | Docker |
 | 向量数据库 | ChromaDB ≥1.5 |
 | 嵌入模型 | BAAI/bge-small-zh-v1.5（33MB，离线加载） |
 | OCR | Tesseract + Pillow |
