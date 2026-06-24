@@ -596,6 +596,30 @@ async function submitAuth() {
             document.getElementById("user-display").textContent = email;
             document.getElementById("user-avatar").textContent = email.charAt(0).toUpperCase();
             document.getElementById("login-modal").close();
+
+            // 迁移游客对话到数据库
+            const guestSessions = loadGuestSessions();
+            if (guestSessions.length > 0) {
+                const uid = localStorage.getItem("mc_uid");
+                for (const s of guestSessions) {
+                    try {
+                        await fetch("/api/sessions", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                id: s.id,
+                                user_id: uid,
+                                messages: s.messages,
+                                title: s.title,
+                            }),
+                        });
+                    } catch (e) {
+                        console.warn("迁移游客会话失败:", s.id, e);
+                    }
+                }
+                sessionStorage.removeItem("guest_sessions");
+            }
+
             msg.textContent = "";
             loadSessionHistory();
         } else {
