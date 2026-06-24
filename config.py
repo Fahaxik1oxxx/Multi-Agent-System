@@ -11,7 +11,7 @@ LLM 配置。
        * 直写字符串（仅测试用，不要提交代码库）
   3. 在 ROLE_MODEL 里给每个角色指定要用的模型（填 MODEL_POOL 的 key）
   4. pip install -r requirements.txt
-  5. streamlit run main.py
+  5. uvicorn main:app --reload --port 8501
 
 【示例：添加 GPT-4o】
   MODEL_POOL = {
@@ -41,11 +41,6 @@ MODEL_POOL = {
         "api_key": os.getenv("DEEPSEEK_API_KEY"),
         "base_url": "https://api.deepseek.com/v1",
         "price": [0.001, 0.001],
-    },
-    "b-qwen": {
-        "model": "qwen2.5:7b",
-        "api_key": "ollama",
-        "base_url": "http://localhost:11434/v1",
     },
 }
 

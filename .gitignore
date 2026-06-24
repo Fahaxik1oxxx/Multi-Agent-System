@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 
+# === 数据库文件（含用户/会话/向量数据，切勿提交） ===
+data.db
+rag/chroma_db/
+
 # === 临时文件 ===
 **/coding/tmp_code_*/
 **/coding/*.png
@@ -15,6 +19,10 @@ _test_*.py
 # === 环境变量 ===
 .env
 
+# === 环境变量 ===
+.env
+
 # === IDE ===
 .vscode/
+.idea/
 *.swp

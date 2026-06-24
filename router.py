@@ -27,7 +27,7 @@ _ROUTER_SYSTEM = (
     "3. 如果是 HelloWorld/C 程序代码片段 → 轻 + 问答（不需要走完整开发流程）\n"
     "4. 「帮我分析这个数据」→ 重 + 分析；「数据分析是什么」→ 轻 + 问答\n"
     "5. 「写一份详细的项目方案」→ 重 + 写作；「三句话总结」→ 轻 + 写作\n"
-    "    6. 如果用户要求搜索/查资料/检索/查找XX知识/基于知识库 → 重 + 分析\n"
+    "6. 如果用户要求搜索/查资料/检索/查找XX知识/基于知识库 → 重 + 分析\n"
     "7. 用户直接粘贴数据要求「分析 以下数据」→ 重 + 分析\n\n"
     "示例：\n"
     "写一个最简单的c程序 → 编程|轻\n"
@@ -54,7 +54,10 @@ def _get_model_info():
 
 
 def classify(user_input: str) -> tuple[str, str]:
-    """返回 (task_type, complexity)"""
+    """返回 (task_type, complexity)
+    task_type: 编程 | 写作 | 分析 | 问答 | 闲聊
+    complexity: 轻 | 重
+    """
     info = _get_model_info()
     payload = json.dumps({
         "model": info["model"],

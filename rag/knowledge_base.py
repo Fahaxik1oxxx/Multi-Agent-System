@@ -7,10 +7,14 @@ ChromaDB 知识库封装 —— 建库、检索、文档管理。
 
 import os
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_DATASETS_OFFLINE"] = "1"
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
+import chromadb
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCUMENTS_DIR = os.path.join(BASE_DIR, "rag", "documents")
@@ -23,7 +27,10 @@ _vectorstore = None
 def _get_embeddings():
     global _embeddings
     if _embeddings is None:
-        _embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
+        _embeddings = HuggingFaceEmbeddings(
+            model_name="BAAI/bge-small-zh-v1.5",
+            model_kwargs={"local_files_only": True},
+        )
     return _embeddings
 
 
@@ -40,7 +47,21 @@ def _get_vectorstore():
 
 
 def build_index():
-    """扫描 documents/ 下所有 PDF/TXT，重建索引"""
+    """扫描 documents/ 下所有 PDF/TXT，重建索引。
+    先删除旧 collection，确保不会累积重复切片。"""
+    global _vectorstore
+
+    # 1. 删除旧 collection（如果存在）
+    client = chromadb.PersistentClient(path=PERSIST_DIR)
+    try:
+        client.delete_collection("langchain")
+    except Exception:
+        pass  # 首次构建时 collection 不存在
+
+    # 2. 清除全局缓存
+    _vectorstore = None
+
+    # 3. 扫描文档
     emb = _get_embeddings()
     docs = []
     for fname in os.listdir(DOCUMENTS_DIR):
@@ -51,18 +72,24 @@ def build_index():
         elif fname.endswith(".txt"):
             loader = TextLoader(fpath, encoding="utf-8")
             docs.extend(loader.load())
+
     if not docs:
         return 0
+
+    # 4. 切分
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=300, chunk_overlap=50,
         separators=["\n\n", "\n", "。", "！", "？", " ", ""],
     )
     chunks = splitter.split_documents(docs)
+
+    # 5. 创建新 collection
     Chroma.from_documents(
         documents=chunks,
         embedding=emb,
         persist_directory=PERSIST_DIR,
     )
+
     return len(chunks)
 
 
