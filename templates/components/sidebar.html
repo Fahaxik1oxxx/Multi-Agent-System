@@ -264,7 +264,9 @@ function switchConfigTab(el) {
 function loadKnowledgeFiles() {
     var el = document.getElementById('kb-file-list');
     if (!el) return;
-    fetch('/api/knowledge/files')
+    fetch('/api/knowledge/files', {
+            headers: { "Authorization": "Bearer " + (localStorage.getItem("auth_token") || "") }
+        })
         .then(function(r) { return r.json(); })
         .then(function(files) {
             if (!files || !files.length) {
@@ -288,7 +290,10 @@ function loadKnowledgeFiles() {
 function deleteKnowledgeFile(name, btn) {
     if (!confirm('删除文件「' + name + '」？')) return;
     btn.disabled = true;
-    fetch('/api/knowledge/' + encodeURIComponent(name), { method: 'DELETE' })
+    fetch('/api/knowledge/' + encodeURIComponent(name), {
+            method: 'DELETE',
+            headers: { "Authorization": "Bearer " + (localStorage.getItem("auth_token") || "") }
+        })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.success) {
@@ -370,35 +375,11 @@ async function loadSessionHistory() {
         return;
     }
 
-    // 注册用户 → 现有逻辑
-    // 获取或自动创建用户 ID
-    let uid = localStorage.getItem("mc_uid") || "";
-    if (!uid) {
-        // 游客自动注册
-        const guestName = "游客_" + Math.random().toString(36).slice(2, 8);
-        try {
-            const resp = await fetch("/api/users", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: guestName }),
-            });
-            const data = await resp.json();
-            if (!data.error) {
-                localStorage.setItem("mc_uid", data.user_id);
-                localStorage.setItem("mc_uname", data.name);
-                uid = data.user_id;
-            }
-        } catch (e) {
-            el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">加载失败</div>';
-            return;
-        }
-    }
-    if (!uid) {
-        el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">请先登录以查看历史</div>';
-        return;
-    }
+    // 注册用户 → 带 Token
     try {
-        const resp = await fetch("/api/sessions?user_id=" + encodeURIComponent(uid));
+        const resp = await fetch("/api/sessions", {
+            headers: { "Authorization": "Bearer " + localStorage.getItem("auth_token") }
+        });
         if (!resp.ok) throw new Error("请求失败");
         const sessions = await resp.json();
         if (!sessions.length) {
@@ -453,9 +434,11 @@ async function switchSession(sid) {
         return;
     }
 
-    // 注册用户 → 现有逻辑
+    // 注册用户 → 带 Token
     try {
-        const resp = await fetch(`/api/sessions/${sid}`);
+        const resp = await fetch(`/api/sessions/${sid}`, {
+            headers: { "Authorization": "Bearer " + localStorage.getItem("auth_token") }
+        });
         if (!resp.ok) return;
         const data = await resp.json();
         const container = document.getElementById("chat-messages");
@@ -486,10 +469,13 @@ async function deleteSession(sid) {
         return;
     }
 
-    // 注册用户 → 现有逻辑
+    // 注册用户 → 带 Token
     if (!confirm("删除此对话？")) return;
     try {
-        await fetch(`/api/sessions/${sid}`, { method: "DELETE" });
+        await fetch(`/api/sessions/${sid}`, {
+            method: "DELETE",
+            headers: { "Authorization": "Bearer " + localStorage.getItem("auth_token") }
+        });
         loadSessionHistory();
     } catch (e) {
         console.error("删除会话失败:", e);

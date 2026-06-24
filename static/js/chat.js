@@ -16,16 +16,20 @@ const COLORS = {
 let messageHistory = [];
 let _currentSessionId = null;
 
+// ===== 鉴权工具 =====
+function getAuthHeaders() {
+    const token = localStorage.getItem("auth_token");
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = "Bearer " + token;
+    return headers;
+}
+
 // ===== 初始化 =====
 document.addEventListener("DOMContentLoaded", async () => {
     loadKnowledgeStats();
     setupLaneMode();
     setupChatForm();
     setupKnowledgeUI();
-    // 确保有用户 ID（游客自动注册），然后加载会话历史
-    const uid = await ensureUserId();
-    // 注册用户：加载数据库会话历史
-    // 游客：加载 sessionStorage 会话历史（此时 isGuest 等函数已定义）
     if (typeof loadSessionHistory === 'function') {
         loadSessionHistory();
     }
@@ -293,7 +297,9 @@ function removeLoadingMessage(id) {
 // ===== 知识库 UI =====
 async function loadKnowledgeStats() {
     try {
-        const resp = await fetch("/api/knowledge/stats");
+        const resp = await fetch("/api/knowledge/stats", {
+            headers: { "Authorization": "Bearer " + (localStorage.getItem("auth_token") || "") }
+        });
         if (!resp.ok) return;
         const data = await resp.json();
         const docEl = document.getElementById("kb-doc-count");
@@ -309,7 +315,10 @@ function setupKnowledgeUI() {
         this.disabled = true;
         this.textContent = "重建中...";
         try {
-            const resp = await fetch("/api/knowledge/rebuild", { method: "POST" });
+            const resp = await fetch("/api/knowledge/rebuild", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + (localStorage.getItem("auth_token") || "") }
+            });
             if (!resp.ok) {
                 const text = await resp.text();
                 throw new Error(text.slice(0, 200));
@@ -334,7 +343,11 @@ function setupKnowledgeUI() {
         const formData = new FormData();
         formData.append("file", file);
         try {
-            const resp = await fetch("/api/knowledge/upload", { method: "POST", body: formData });
+            const resp = await fetch("/api/knowledge/upload", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + (localStorage.getItem("auth_token") || "") },
+                body: formData
+            });
             const data = await resp.json();
             if (data.success) {
                 alert(`已上传: ${data.filename}`);
@@ -405,16 +418,14 @@ async function saveCurrentSession() {
         return;
     }
 
-    // 注册用户 → 现有逻辑
-    const uid = await ensureUserId();
-    if (!uid) return;
+    // 注册用户 → 带 Token
     try {
         const sid = _currentSessionId || String(Date.now());
         const title = messageHistory[0]?.content?.slice(0, 50) || "新对话";
         await fetch("/api/sessions", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: sid, user_id: uid, messages: messageHistory, title: title }),
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ id: sid, messages: messageHistory, title: title }),
         });
         _currentSessionId = sid;
         if (typeof loadSessionHistory === 'function') loadSessionHistory();
@@ -424,38 +435,8 @@ async function saveCurrentSession() {
 }
 
 // ===== 用户工具函数 =====
-function getUserId() {
-    return localStorage.getItem("mc_uid") || "";
-}
-
 function getUserName() {
     return localStorage.getItem("mc_uname") || "";
-}
-
-async function ensureUserId() {
-    // 游客不需要 user_id（不调用后端会话 API）
-    if (isGuest()) return "";
-
-    let uid = localStorage.getItem("mc_uid");
-    if (uid) return uid;
-    // 游客自动注册：使用 "游客" + 短标识作为用户名
-    const guestName = "游客_" + Math.random().toString(36).slice(2, 8);
-    try {
-        const resp = await fetch("/api/users", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: guestName }),
-        });
-        const data = await resp.json();
-        if (!data.error) {
-            localStorage.setItem("mc_uid", data.user_id);
-            localStorage.setItem("mc_uname", data.name);
-            return data.user_id;
-        }
-    } catch (e) {
-        console.error("自动注册游客失败:", e);
-    }
-    return "";
 }
 
 // ===== 覆盖 sidebar.html 中的 newChat =====
