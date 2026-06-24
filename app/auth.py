@@ -1,7 +1,65 @@
 """认证 API 路由 — 注册、登录、退出、获取当前用户。"""
+import time
+import threading
 import uuid
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import JSONResponse
+
+class LoginRateLimiter:
+    """内存登录限流器 — 5 次失败锁 15 分钟"""
+    MAX_ATTEMPTS = 5
+    LOCK_MINUTES = 15
+
+    def __init__(self):
+        self._records: dict[str, dict] = {}
+        self._lock = threading.Lock()
+        self._last_cleanup = time.time()
+
+    def _get_key(self, request: Request) -> str:
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def check(self, request: Request) -> int | None:
+        """返回 None=允许，返回秒数=需等待"""
+        self._maybe_cleanup()
+        key = self._get_key(request)
+        with self._lock:
+            record = self._records.get(key)
+            if record and record.get("locked_until"):
+                remaining = int(record["locked_until"] - time.time())
+                if remaining > 0:
+                    return remaining
+                del self._records[key]
+        return None
+
+    def record_failure(self, request: Request):
+        key = self._get_key(request)
+        with self._lock:
+            r = self._records.get(key, {"failures": 0, "locked_until": 0})
+            r["failures"] += 1
+            if r["failures"] >= self.MAX_ATTEMPTS:
+                r["locked_until"] = time.time() + self.LOCK_MINUTES * 60
+            self._records[key] = r
+
+    def clear(self, request: Request):
+        key = self._get_key(request)
+        with self._lock:
+            self._records.pop(key, None)
+
+    def _maybe_cleanup(self):
+        now = time.time()
+        if now - self._last_cleanup > 3600:
+            with self._lock:
+                expired = [k for k, v in self._records.items()
+                           if v.get("locked_until", 0) > 0 and v["locked_until"] < now]
+                for k in expired:
+                    del self._records[k]
+                self._last_cleanup = now
+
+
+_limiter = LoginRateLimiter()
 
 router = APIRouter()
 
@@ -51,10 +109,21 @@ async def auth_login(request: Request):
     password = data.get("password", "").strip()
     if not name or not password:
         return JSONResponse({"error": "用户名和密码不能为空"}, status_code=400)
+
+    # 检查登录限流
+    wait = _limiter.check(request)
+    if wait is not None:
+        return JSONResponse(
+            {"error": f"尝试次数过多，请 {wait // 60} 分 {wait % 60} 秒后重试"},
+            status_code=429,
+        )
+
     db = _get_db(request)
     user = db.authenticate(name, password)
     if not user:
+        _limiter.record_failure(request)
         return JSONResponse({"error": "用户名或密码错误"}, status_code=401)
+    _limiter.clear(request)
     return JSONResponse({"token": user["token"], "user_id": user["id"], "name": user["name"]})
 
 
