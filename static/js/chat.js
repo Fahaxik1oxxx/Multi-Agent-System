@@ -137,7 +137,7 @@ async function sendMessage(message) {
 
         if (!resp.ok) {
             const errData = await resp.json().catch(() => ({}));
-            throw new Error(errData.error || `服务器错误 (${resp.status})`);
+            throw new Error(errData.error || errData.reply || `服务器错误 (${resp.status})`);
         }
 
         const data = await resp.json();
@@ -436,3 +436,24 @@ window.newChat = function() {
     messageHistory = [];
     _currentSessionId = null;
 };
+
+// ===== 游客会话（sessionStorage） =====
+function isGuest() {
+    return !localStorage.getItem("auth_user");
+}
+
+function loadGuestSessions() {
+    try {
+        return JSON.parse(sessionStorage.getItem("guest_sessions") || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveGuestSessions(sessions) {
+    try {
+        sessionStorage.setItem("guest_sessions", JSON.stringify(sessions));
+    } catch (e) {
+        console.warn("sessionStorage 写入失败（可能超出容量）:", e);
+    }
+}
