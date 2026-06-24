@@ -431,6 +431,9 @@ function getUserName() {
 }
 
 async function ensureUserId() {
+    // 游客不需要 user_id（不调用后端会话 API）
+    if (isGuest()) return "";
+
     let uid = localStorage.getItem("mc_uid");
     if (uid) return uid;
     // 游客自动注册：使用 "游客" + 短标识作为用户名
