@@ -577,6 +577,7 @@ async function submitAuth() {
                 body: JSON.stringify({ name: name, password: password }),
             });
             const data = await resp.json();
+            if (resp.status === 429) { msg.textContent = data.error; return; }
             if (data.error) { msg.textContent = data.error; return; }
             localStorage.setItem("auth_token", data.token);
             localStorage.setItem("mc_uname", data.name);
