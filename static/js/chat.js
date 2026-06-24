@@ -379,6 +379,31 @@ function markdownToHtml(md) {
 // ===== 会话保存（适配 db.py 后端） =====
 async function saveCurrentSession() {
     if (!messageHistory.length) return;
+
+    // 游客 → sessionStorage
+    if (isGuest()) {
+        const sessions = loadGuestSessions();
+        const sid = _currentSessionId || String(Date.now());
+        const title = messageHistory[0]?.content?.slice(0, 50) || "新对话";
+        const existing = sessions.findIndex(s => s.id === sid);
+        const entry = {
+            id: sid,
+            title: title,
+            messages: [...messageHistory],
+            updated: new Date().toISOString(),
+        };
+        if (existing >= 0) {
+            sessions[existing] = entry;
+        } else {
+            sessions.unshift(entry);
+        }
+        saveGuestSessions(sessions);
+        _currentSessionId = sid;
+        if (typeof loadSessionHistory === 'function') loadSessionHistory();
+        return;
+    }
+
+    // 注册用户 → 现有逻辑
     const uid = await ensureUserId();
     if (!uid) return;
     try {
@@ -390,7 +415,6 @@ async function saveCurrentSession() {
             body: JSON.stringify({ id: sid, user_id: uid, messages: messageHistory, title: title }),
         });
         _currentSessionId = sid;
-        // 刷新侧栏会话列表
         if (typeof loadSessionHistory === 'function') loadSessionHistory();
     } catch (e) {
         console.error("保存会话失败:", e);
