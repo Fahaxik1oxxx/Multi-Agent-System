@@ -622,7 +622,7 @@ async function migrateGuestSessions() {
     }
 }
 
-function logout() {
+async function logout() {
     if (!confirm("确认退出登录？")) return;
     // 调用后端删除 token
     const token = localStorage.getItem("auth_token");
