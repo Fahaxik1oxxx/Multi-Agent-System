@@ -1,7 +1,9 @@
 """知识库管理 API 路由。"""
 import os
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, Depends
 from fastapi.responses import JSONResponse
+
+from app.auth import require_auth
 
 router = APIRouter()
 
@@ -10,24 +12,32 @@ _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg"}
 
 
+def _get_user_kb_dirs(user_id: str):
+    """返回 (documents_dir, chroma_db_dir)，按 user_id 物理隔离。
+    目录不存在时自动创建。"""
+    docs = os.path.join(_BASE, "rag", "documents", user_id)
+    chroma = os.path.join(_BASE, "rag", "chroma_db", user_id)
+    os.makedirs(docs, exist_ok=True)
+    os.makedirs(chroma, exist_ok=True)
+    return docs, chroma
+
+
 @router.get("/stats")
-async def kb_stats():
+async def kb_stats(user: dict = Depends(require_auth)):
     from rag.knowledge_base import get_stats
-    return JSONResponse(get_stats(user_id="shared"))
+    return JSONResponse(get_stats(user["user_id"]))
 
 
 @router.post("/rebuild")
-async def kb_rebuild():
+async def kb_rebuild(user: dict = Depends(require_auth)):
     from rag.knowledge_base import build_index
-    n = build_index(user_id="shared")
+    n = build_index(user["user_id"])
     return JSONResponse({"success": True, "added": n})
 
 
 @router.post("/upload")
-async def kb_upload(file: UploadFile = File(...)):
-    # TODO(Task 5): 从 require_auth 获取 user_id 替换 "shared"
-    doc_dir = os.path.join(_BASE, "rag", "documents", "shared")
-    os.makedirs(doc_dir, exist_ok=True)
+async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_auth)):
+    docs_dir, _ = _get_user_kb_dirs(user["user_id"])
 
     # Sanitize filename to prevent path traversal
     safe_name = os.path.basename(file.filename)
@@ -53,7 +63,7 @@ async def kb_upload(file: UploadFile = File(...)):
                 return JSONResponse({"success": False, "error": "图片中未识别到文字"}, status_code=400)
 
             txt_name = safe_name.rsplit(".", 1)[0] + "_ocr.txt"
-            txt_path = os.path.join(doc_dir, os.path.basename(txt_name))
+            txt_path = os.path.join(docs_dir, os.path.basename(txt_name))
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(text)
             return JSONResponse({"success": True, "filename": txt_name, "ocr": True})
@@ -62,7 +72,7 @@ async def kb_upload(file: UploadFile = File(...)):
         except Exception as e:
             return JSONResponse({"success": False, "error": f"OCR 失败: {e}"}, status_code=500)
     else:
-        doc_path = os.path.join(doc_dir, safe_name)
+        doc_path = os.path.join(docs_dir, safe_name)
         contents = await file.read()
         with open(doc_path, "wb") as f:
             f.write(contents)
@@ -70,12 +80,10 @@ async def kb_upload(file: UploadFile = File(...)):
 
 
 @router.delete("/{filename}")
-async def kb_delete(filename: str):
-    # Sanitize filename to prevent path traversal
+async def kb_delete(filename: str, user: dict = Depends(require_auth)):
     safe_name = os.path.basename(filename)
-    # TODO(Task 5): 从 require_auth 获取 user_id 替换 "shared"
-    doc_dir = os.path.join(_BASE, "rag", "documents", "shared")
-    path = os.path.join(doc_dir, safe_name)
+    docs_dir, _ = _get_user_kb_dirs(user["user_id"])
+    path = os.path.join(docs_dir, safe_name)
     if not os.path.exists(path):
         return JSONResponse({"success": False, "error": "文件不存在"}, status_code=404)
     try:
