@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -188,34 +188,33 @@ def _get_db(request: Request):
 
 
 @app.get("/api/sessions")
-async def list_sessions(request: Request, user_id: str = ""):
-    """列出指定用户的会话摘要"""
+async def list_sessions(request: Request, user: dict = Depends(require_auth)):
+    """列出当前用户的会话摘要"""
     db = _get_db(request)
-    if not user_id:
-        return JSONResponse([])
-    summary = db.list_sessions(user_id)
+    summary = db.list_sessions(user["user_id"])
     return JSONResponse(summary)
 
 
 @app.post("/api/sessions")
-async def save_session(request: Request):
+async def save_session(request: Request, user: dict = Depends(require_auth)):
     """保存/创建会话"""
     db = _get_db(request)
     data = await request.json()
     sid = data.get("id") or str(int(__import__("time").time() * 1000))
-    user_id = data.get("user_id", "")
     title = data.get("title", "")
-    result = db.save_session(sid, user_id, data.get("messages", []), title)
+    result = db.save_session(sid, user["user_id"], data.get("messages", []), title)
     return JSONResponse(result)
 
 
 @app.get("/api/sessions/{session_id}")
-async def get_session(request: Request, session_id: str):
+async def get_session(request: Request, session_id: str, user: dict = Depends(require_auth)):
     """获取单个会话的完整消息"""
     db = _get_db(request)
     s = db.get_session(session_id)
     if not s:
         return JSONResponse({"error": "会话不存在"}, status_code=404)
+    if s["user_id"] != user["user_id"]:
+        return JSONResponse({"error": "无权访问"}, status_code=403)
     # 向后兼容：保持旧响应格式（不含 user_id 顶层字段）
     return JSONResponse({
         "messages": s["messages"],
@@ -224,44 +223,16 @@ async def get_session(request: Request, session_id: str):
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session(request: Request, session_id: str):
+async def delete_session(request: Request, session_id: str, user: dict = Depends(require_auth)):
     """删除会话"""
     db = _get_db(request)
-    deleted = db.delete_session(session_id)
-    if not deleted:
+    s = db.get_session(session_id)
+    if not s:
         return JSONResponse({"error": "会话不存在"}, status_code=404)
+    if s["user_id"] != user["user_id"]:
+        return JSONResponse({"error": "无权访问"}, status_code=403)
+    db.delete_session(session_id)
     return JSONResponse({"status": "ok"})
-
-
-# ──── 用户管理 ────
-
-@app.post("/api/users")
-async def create_user(request: Request):
-    """创建用户，返回 {user_id, name, token}"""
-    db = _get_db(request)
-    data = await request.json()
-    name = data.get("name", "").strip()
-    email = data.get("email", "").strip()
-    password = data.get("password", "")
-    if not name:
-        return JSONResponse({"error": "用户名不能为空"}, status_code=400)
-    try:
-        user = db.create_user(name, email, password)
-    except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=409)
-    return JSONResponse({"user_id": user["id"], "name": user["name"], "token": user["token"]})
-
-
-@app.get("/api/users")
-async def get_user(request: Request, name: str = ""):
-    """按名称查找用户"""
-    db = _get_db(request)
-    if not name:
-        return JSONResponse({"error": "缺少 name 参数"}, status_code=400)
-    user = db.get_user(name.strip())
-    if not user:
-        return JSONResponse({"error": "用户不存在"}, status_code=404)
-    return JSONResponse({"user_id": user["id"], "name": user["name"]})
 
 
 # ──── 启动 ────
