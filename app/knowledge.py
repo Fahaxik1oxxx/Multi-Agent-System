@@ -13,19 +13,20 @@ ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg"}
 @router.get("/stats")
 async def kb_stats():
     from rag.knowledge_base import get_stats
-    return JSONResponse(get_stats())
+    return JSONResponse(get_stats(user_id="shared"))
 
 
 @router.post("/rebuild")
 async def kb_rebuild():
     from rag.knowledge_base import build_index
-    n = build_index()
+    n = build_index(user_id="shared")
     return JSONResponse({"success": True, "added": n})
 
 
 @router.post("/upload")
 async def kb_upload(file: UploadFile = File(...)):
-    doc_dir = os.path.join(_BASE, "rag", "documents")
+    # TODO(Task 5): 从 require_auth 获取 user_id 替换 "shared"
+    doc_dir = os.path.join(_BASE, "rag", "documents", "shared")
     os.makedirs(doc_dir, exist_ok=True)
 
     # Sanitize filename to prevent path traversal
@@ -72,7 +73,8 @@ async def kb_upload(file: UploadFile = File(...)):
 async def kb_delete(filename: str):
     # Sanitize filename to prevent path traversal
     safe_name = os.path.basename(filename)
-    doc_dir = os.path.join(_BASE, "rag", "documents")
+    # TODO(Task 5): 从 require_auth 获取 user_id 替换 "shared"
+    doc_dir = os.path.join(_BASE, "rag", "documents", "shared")
     path = os.path.join(doc_dir, safe_name)
     if not os.path.exists(path):
         return JSONResponse({"success": False, "error": "文件不存在"}, status_code=404)

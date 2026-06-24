@@ -55,7 +55,7 @@ def ocr_and_index(uploaded_file) -> int:
         return 0
 
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    doc_dir = os.path.join(base, "rag", "documents")
+    doc_dir = os.path.join(base, "rag", "documents", "shared")
     os.makedirs(doc_dir, exist_ok=True)
 
     name = uploaded_file.name if hasattr(uploaded_file, "name") else "clipboard_ocr"
@@ -65,4 +65,4 @@ def ocr_and_index(uploaded_file) -> int:
         f.write(text)
 
     from rag.knowledge_base import build_index
-    return build_index()
+    return build_index(user_id="shared")
