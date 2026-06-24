@@ -76,6 +76,11 @@ def require_auth(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="未提供认证令牌")
     token = auth[7:]
     db = _get_db(request)
+
+    # 先检查 Token 是否存在但已过期
+    if db.is_token_expired(token):
+        raise HTTPException(status_code=401, detail="令牌已过期，请重新登录")
+
     user = db.get_user_by_token(token)
     if not user:
         raise HTTPException(status_code=401, detail="令牌无效或已过期")
@@ -124,6 +129,7 @@ async def auth_login(request: Request):
         _limiter.record_failure(request)
         return JSONResponse({"error": "用户名或密码错误"}, status_code=401)
     _limiter.clear(request)
+    db.cleanup_user_tokens(user["id"])
     return JSONResponse({"token": user["token"], "user_id": user["id"], "name": user["name"]})
 
 
@@ -138,6 +144,9 @@ async def auth_logout(request: Request):
 
 
 @router.get("/me")
-async def auth_me(user: dict = Depends(require_auth)):
-    """获取当前用户信息（需鉴权）"""
+async def auth_me(request: Request, user: dict = Depends(require_auth)):
+    """获取当前用户信息（需鉴权）— 每次请求自动续期 Token 至 7 天后"""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        _get_db(request).renew_token(auth[7:])
     return JSONResponse({"user_id": user["user_id"], "user_name": user["user_name"]})
