@@ -66,6 +66,9 @@ templates = Jinja2Templates(directory=os.path.join(_PROJECT_DIR, "templates"))
 from app.knowledge import router as knowledge_router
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["知识库"])
 
+from app.auth import router as auth_router, require_auth
+app.include_router(auth_router, prefix="/api/auth", tags=["认证"])
+
 
 @app.get("/", response_class=HTMLResponse, tags=["页面"])
 async def index(request: Request):
