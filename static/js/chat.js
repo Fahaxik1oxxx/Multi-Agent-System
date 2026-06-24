@@ -24,7 +24,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupKnowledgeUI();
     // 确保有用户 ID（游客自动注册），然后加载会话历史
     const uid = await ensureUserId();
-    if (uid && typeof loadSessionHistory === 'function') {
+    // 注册用户：加载数据库会话历史
+    // 游客：加载 sessionStorage 会话历史（此时 isGuest 等函数已定义）
+    if (typeof loadSessionHistory === 'function') {
         loadSessionHistory();
     }
 });

@@ -10,6 +10,10 @@ _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _PROJECT_DIR not in sys.path:
     sys.path.insert(0, _PROJECT_DIR)
 
+# 加载 .env 文件（优先级高于系统环境变量）
+from dotenv import load_dotenv
+load_dotenv(os.path.join(_PROJECT_DIR, ".env"), override=True)
+
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["NO_PROXY"] = "localhost,127.0.0.1"
 os.environ["no_proxy"] = "localhost,127.0.0.1"
@@ -94,8 +98,16 @@ async def chat(request: Request):
         result = run_chat_pipeline(user_input, history=history, lane_mode=lane_mode)
         return JSONResponse(result)
     except Exception as e:
+        import traceback
+        logging.error(f"聊天管道异常: {traceback.format_exc()}")
         return JSONResponse(
-            {"reply": f"❌ 执行失败: {str(e)}", "thinking": [], "task_type": "错误", "generated_files": []},
+            {
+                "reply": f"❌ 执行失败: {str(e)}",
+                "error": str(e),
+                "thinking": [],
+                "task_type": "错误",
+                "generated_files": [],
+            },
             status_code=500,
         )
 
@@ -247,4 +259,4 @@ async def get_user(request: Request, name: str = ""):
 # ──── 启动 ────
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8501, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8502, reload=False)

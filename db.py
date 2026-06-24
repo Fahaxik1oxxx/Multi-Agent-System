@@ -136,6 +136,16 @@ class Database:
                      messages: list[dict], title: str = "") -> dict:
         """创建或更新会话（UPSERT）。返回 {"id": str, "status": "ok"}"""
         with self._conn() as conn:
+            # 确保用户存在（容错：数据库重建后前端可能持有旧 user_id）
+            user_exists = conn.execute(
+                "SELECT id FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if not user_exists:
+                # 用 user_id 作为 name 的兜底方案创建用户
+                conn.execute(
+                    "INSERT OR IGNORE INTO users (id, name) VALUES (?, ?)",
+                    (user_id, f"用户_{user_id}"),
+                )
             existing = conn.execute(
                 "SELECT id FROM sessions WHERE id = ?", (session_id,)
             ).fetchone()

@@ -334,6 +334,9 @@ function getTimeCategory(updated) {
 }
 
 async function loadSessionHistory() {
+    // 等待 chat.js 加载完成（isGuest 等工具函数在此定义）
+    if (typeof isGuest !== 'function') return;
+
     const el = document.getElementById("session-list");
     if (!el) return;
 
@@ -601,23 +604,33 @@ async function submitAuth() {
             const guestSessions = loadGuestSessions();
             if (guestSessions.length > 0) {
                 const uid = localStorage.getItem("mc_uid");
-                for (const s of guestSessions) {
-                    try {
-                        await fetch("/api/sessions", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                id: s.id,
-                                user_id: uid,
-                                messages: s.messages,
-                                title: s.title,
-                            }),
-                        });
-                    } catch (e) {
-                        console.warn("迁移游客会话失败:", s.id, e);
+                if (!uid) {
+                    console.warn("无法迁移游客会话：未获取到用户 ID");
+                } else {
+                    const remaining = [];
+                    for (const s of guestSessions) {
+                        try {
+                            await fetch("/api/sessions", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    id: s.id,
+                                    user_id: uid,
+                                    messages: s.messages,
+                                    title: s.title,
+                                }),
+                            });
+                        } catch (e) {
+                            console.warn("迁移游客会话失败:", s.id, e);
+                            remaining.push(s);
+                        }
+                    }
+                    if (remaining.length > 0) {
+                        saveGuestSessions(remaining);
+                    } else {
+                        sessionStorage.removeItem("guest_sessions");
                     }
                 }
-                sessionStorage.removeItem("guest_sessions");
             }
 
             msg.textContent = "";
