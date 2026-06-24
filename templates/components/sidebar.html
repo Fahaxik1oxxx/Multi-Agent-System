@@ -336,6 +336,38 @@ function getTimeCategory(updated) {
 async function loadSessionHistory() {
     const el = document.getElementById("session-list");
     if (!el) return;
+
+    // 游客 → 从 sessionStorage 加载
+    if (isGuest()) {
+        const sessions = loadGuestSessions();
+        if (!sessions.length) {
+            el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">暂无对话记录</div>';
+            return;
+        }
+        const groups = {};
+        sessions.forEach(s => {
+            const cat = getTimeCategory(s.updated);
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(s);
+        });
+        let html = "";
+        TIME_GROUPS.forEach(g => {
+            const items = groups[g];
+            if (!items || !items.length) return;
+            html += `<div class="text-xs opacity-40 mb-0.5 mt-1.5">${g}</div>`;
+            items.forEach(s => {
+                const title = s.title && s.title !== "空对话" ? s.title : `对话 (${s.messages.length} 条消息)`;
+                html += `<div class="history-item" onclick="switchSession('${s.id}')">
+                    <span class="truncate">${escapeHtmlSidebar(title)}</span>
+                    <span class="history-ops" onclick="event.stopPropagation();deleteSession('${s.id}')">⋮</span>
+                </div>`;
+            });
+        });
+        el.innerHTML = html;
+        return;
+    }
+
+    // 注册用户 → 现有逻辑
     // 获取或自动创建用户 ID
     let uid = localStorage.getItem("mc_uid") || "";
     if (!uid) {
@@ -399,6 +431,26 @@ async function loadSessionHistory() {
 }
 
 async function switchSession(sid) {
+    // 游客 → 从 sessionStorage 加载
+    if (isGuest()) {
+        const sessions = loadGuestSessions();
+        const s = sessions.find(s => s.id === sid);
+        if (!s) return;
+        const container = document.getElementById("chat-messages");
+        if (!container) return;
+        container.innerHTML = "";
+        if (typeof _currentSessionId !== 'undefined') _currentSessionId = sid;
+        if (typeof messageHistory !== 'undefined') messageHistory = [];
+        (s.messages || []).forEach(m => {
+            const cls = m.role === "user" ? "message-user" : "message-assistant";
+            container.innerHTML += `<div class="${cls}"><div class="bubble">${escapeHtmlSidebar(m.content || "")}</div></div>`;
+            if (typeof messageHistory !== 'undefined') messageHistory.push(m);
+        });
+        container.scrollTop = container.scrollHeight;
+        return;
+    }
+
+    // 注册用户 → 现有逻辑
     try {
         const resp = await fetch(`/api/sessions/${sid}`);
         if (!resp.ok) return;
@@ -422,6 +474,16 @@ async function switchSession(sid) {
 }
 
 async function deleteSession(sid) {
+    // 游客 → 从 sessionStorage 删除
+    if (isGuest()) {
+        if (!confirm("删除此对话？")) return;
+        const sessions = loadGuestSessions();
+        saveGuestSessions(sessions.filter(s => s.id !== sid));
+        loadSessionHistory();
+        return;
+    }
+
+    // 注册用户 → 现有逻辑
     if (!confirm("删除此对话？")) return;
     try {
         await fetch(`/api/sessions/${sid}`, { method: "DELETE" });
