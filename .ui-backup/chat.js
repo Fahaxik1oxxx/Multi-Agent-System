@@ -14,7 +14,6 @@ const COLORS = {
 };
 
 let messageHistory = [];
-let _currentSessionId = null;
 
 // ===== 初始化 =====
 document.addEventListener("DOMContentLoaded", () => {
@@ -22,11 +21,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setupLaneMode();
     setupChatForm();
     setupKnowledgeUI();
-    // 如果已登录，加载会话历史
-    const uid = getUserId();
-    if (uid && typeof loadSessionHistory === 'function') {
-        loadSessionHistory();
-    }
 });
 
 // ===== 车道模式 =====
@@ -34,74 +28,28 @@ function setupLaneMode() {
     const updateStatus = () => {
         const mode = document.querySelector("input[name='lane_mode']:checked")?.value;
         const el = document.getElementById("lane-status");
-        if (el) {
-            if (mode === "fast") {
-                el.innerHTML = '<span class="text-primary fw-bold">快速（直接回复）</span>';
-            } else if (mode === "slow") {
-                el.innerHTML = '<span class="text-success fw-bold">协作（多Agent协作）</span>';
-            } else {
-                el.innerHTML = '<span class="text-info fw-bold">自动（AI 判断）</span>';
-            }
+        if (!el) return;
+        if (mode === "fast") {
+            el.innerHTML = '<span class="text-primary fw-bold">🚀 快车道（直接回复）</span>';
+        } else if (mode === "slow") {
+            el.innerHTML = '<span class="text-success fw-bold">🔄 慢车道（多Agent协作）</span>';
+        } else {
+            el.innerHTML = '<span class="text-info fw-bold">🧠 自动（AI 判断）</span>';
         }
-        // 更新胶囊按钮 active 状态
-        document.querySelectorAll('.mode-toggle-item').forEach(l => {
-            l.classList.toggle('active', l.getAttribute('data-value') === mode);
-        });
-        // 更新悬浮弹窗 active 状态
-        document.querySelectorAll('.lane-option').forEach(o => {
-            o.classList.toggle('active', o.getAttribute('data-value') === mode);
-        });
     };
     document.querySelectorAll("input[name='lane_mode']").forEach(r => {
-        r.addEventListener('change', updateStatus);
+        r.addEventListener("change", updateStatus);
     });
     updateStatus();
-}
-
-// ===== 思考面板展开/收起（CSS transition 动画） =====
-function toggleThinkingPanel(id, btn) {
-    var el = document.getElementById(id);
-    var arrow = btn.querySelector('.toggle-arrow');
-    if (!el || !arrow) return;
-    if (el.classList.contains('open')) {
-        el.classList.remove('open');
-        arrow.classList.remove('open');
-        el.style.maxHeight = '0';
-    } else {
-        el.classList.add('open');
-        arrow.classList.add('open');
-        el.style.maxHeight = 'none';
-        var h = el.scrollHeight;
-        el.style.maxHeight = '0';
-        void el.offsetHeight;
-        el.style.maxHeight = h + 'px';
-        var onEnd = function() {
-            el.style.maxHeight = 'none';
-            el.removeEventListener('transitionend', onEnd);
-        };
-        el.addEventListener('transitionend', onEnd);
-    }
 }
 
 // ===== 聊天表单 =====
 function setupChatForm() {
     const form = document.getElementById("chat-form");
     if (!form) return;
-    const input = document.getElementById("chat-input");
-
-    // Enter 发送，Shift+Enter 换行
-    input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            const message = input.value.trim();
-            if (!message) return;
-            sendMessage(message);
-            input.value = "";
-        }
-    });
-
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
+        const input = document.getElementById("chat-input");
         const message = input.value.trim();
         if (!message) return;
         await sendMessage(message);
@@ -144,8 +92,22 @@ async function sendMessage(message) {
         appendAssistantMessage(data);
         messageHistory.push({ role: "user", content: message });
         messageHistory.push({ role: "assistant", content: data.reply });
-        // 自动保存会话
-        saveCurrentSession();
+
+        // 自动保存会话到服务端
+        const uid = getUserId();
+        if (uid) {
+            const title = message.length > 20 ? message.substring(0, 20) + "..." : message;
+            fetch("/api/sessions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: "session-" + Date.now(),
+                    user_id: uid,
+                    title: title,
+                    messages: messageHistory,
+                }),
+            }).catch(() => {});
+        }
     } catch (err) {
         removeLoadingMessage(loadingId);
         appendErrorMessage(err.message);
@@ -181,14 +143,19 @@ function appendAssistantMessage(data) {
 
         const collapseId = "thinking-" + Date.now();
         thinkingHtml = `
-            <div class="thinking-section">
-                <button class="thinking-toggle" onclick="toggleThinkingPanel('${collapseId}',this)">
-                    <span class="toggle-arrow">
-                        <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
-                    </span>
-                    🧠 ${flow}
+            <div class="thinking-section mb-2">
+                <button class="thinking-toggle" onclick="
+                    var el=document.getElementById('${collapseId}');
+                    var icon=this.querySelector('.toggle-icon');
+                    if(el.style.display==='none'){el.style.display='block';icon.textContent='▼';}
+                    else{el.style.display='none';icon.textContent='▶';}
+                " style="
+                    width:100%; text-align:left; border:none; background:none;
+                    padding:4px 0; cursor:pointer; font-size:0.85rem; color:#6b7280;
+                ">
+                    <span class="toggle-icon">▶</span> 🧠 ${flow}
                 </button>
-                <div id="${collapseId}" class="thinking-collapse">
+                <div id="${collapseId}" class="thinking-collapse" style="display:none;">
                     ${cardsHtml}
                 </div>
             </div>
@@ -211,7 +178,7 @@ function appendAssistantMessage(data) {
 
     div.innerHTML = `
         ${thinkingHtml}
-                <div class="bubble">${markdownToHtml(data.reply)}</div>
+        <div class="bubble">${escapeHtml(data.reply).replace(/\n/g, "<br>")}</div>
         ${filesHtml}
         ${reportHtml}
     `;
@@ -246,8 +213,8 @@ function renderAgentCard(msg) {
     const icon = ICONS[msg.name] || "🔹";
     return `
         <div class="agent-card">
-            <div class="agent-header" style="border-left-color:${color};">
-                <span class="agent-badge" style="background:${color}18; color:${color};">${icon} ${escapeHtml(msg.name)}</span>
+            <div class="agent-header" style="background:${color}20; border-left:3px solid ${color};">
+                ${icon} ${escapeHtml(msg.name)}
             </div>
             <div class="agent-body">${escapeHtml(msg.content).replace(/\n/g, "<br>")}</div>
         </div>
@@ -277,7 +244,7 @@ function appendLoadingMessage() {
     const div = document.createElement("div");
     div.id = id;
     div.className = "message-assistant";
-    div.innerHTML = '<div class="bubble loading-bubble">思考中<span class="loading-dots"></span></div>';
+    div.innerHTML = '<div class="bubble text-muted">思考中<span class="loading-dots"></span></div>';
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
     return id;
@@ -308,10 +275,6 @@ function setupKnowledgeUI() {
         this.textContent = "重建中...";
         try {
             const resp = await fetch("/api/knowledge/rebuild", { method: "POST" });
-            if (!resp.ok) {
-                const text = await resp.text();
-                throw new Error(text.slice(0, 200));
-            }
             const data = await resp.json();
             if (data.success) {
                 alert(`索引重建完成，新增 ${data.added} 条切片`);
@@ -320,9 +283,8 @@ function setupKnowledgeUI() {
             alert("重建失败: " + err.message);
         }
         this.disabled = false;
-        this.textContent = "重建索引";
+        this.textContent = "🔄 重建索引";
         loadKnowledgeStats();
-        if (typeof loadKnowledgeFiles === 'function') loadKnowledgeFiles();
     });
 
     // 上传文件
@@ -344,7 +306,6 @@ function setupKnowledgeUI() {
         }
         this.value = "";
         loadKnowledgeStats();
-        if (typeof loadKnowledgeFiles === 'function') loadKnowledgeFiles();
     });
 }
 
@@ -355,19 +316,10 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ===== Markdown → HTML（代码块带复制按钮 + 语言标签） =====
 function markdownToHtml(md) {
+    // 简单 Markdown → HTML（代码块 + 标题 + 列表）
     let html = escapeHtml(md);
-    // 代码块（带语言标签 + 复制按钮）
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
-        var id = 'cb-' + Math.random().toString(36).slice(2, 8);
-        var label = lang || 'code';
-        return '<div class="code-block" id="' + id + '">' +
-            '<div class="code-lang">' + label + '</div>' +
-            '<button class="code-copy" onclick="var p=document.getElementById(\'' + id + '\');var t=p.querySelector(\'code\').textContent;navigator.clipboard.writeText(t).then(function(){var b=p.querySelector(\'.code-copy\');b.textContent=\'已复制\';setTimeout(function(){b.textContent=\'复制\'},2000)})">复制</button>' +
-            '<pre><code>' + code.trim() + '</code></pre>' +
-            '</div>';
-    });
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, "<pre class='bg-light p-2 rounded'><code>$2</code></pre>");
     html = html.replace(/^### (.+)$/gm, "<h6>$1</h6>");
     html = html.replace(/^## (.+)$/gm, "<h5>$1</h5>");
     html = html.replace(/^# (.+)$/gm, "<h4>$1</h4>");
@@ -376,28 +328,7 @@ function markdownToHtml(md) {
     return html;
 }
 
-// ===== 会话保存（适配 db.py 后端） =====
-async function saveCurrentSession() {
-    if (!messageHistory.length) return;
-    const uid = getUserId();
-    if (!uid) return;
-    try {
-        const sid = _currentSessionId || String(Date.now());
-        const title = messageHistory[0]?.content?.slice(0, 50) || "新对话";
-        await fetch("/api/sessions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: sid, user_id: uid, messages: messageHistory, title: title }),
-        });
-        _currentSessionId = sid;
-        // 刷新侧栏会话列表
-        if (typeof loadSessionHistory === 'function') loadSessionHistory();
-    } catch (e) {
-        console.error("保存会话失败:", e);
-    }
-}
-
-// ===== 用户工具函数 =====
+// ===== 用户 =====
 function getUserId() {
     return localStorage.getItem("mc_uid") || "";
 }
@@ -406,10 +337,66 @@ function getUserName() {
     return localStorage.getItem("mc_uname") || "";
 }
 
-// ===== 覆盖 sidebar.html 中的 newChat =====
+// ===== 会话列表加载 =====
+async function loadSessions() {
+    const uid = getUserId();
+    if (!uid) return;
+    try {
+        const resp = await fetch("/api/sessions?user_id=" + encodeURIComponent(uid));
+        if (!resp.ok) return;
+        const sessions = await resp.json();
+        renderSessionList(sessions);
+    } catch { /* 静默失败 */ }
+}
+
+function renderSessionList(sessions) {
+    let container = document.getElementById("session-list");
+    if (!container) return;
+    if (!sessions || !sessions.length) {
+        container.innerHTML = '<div class="text-xs opacity-40">暂无历史会话</div>';
+        return;
+    }
+    container.innerHTML = sessions.map(s =>
+        `<div class="truncate py-0.5 cursor-pointer hover:opacity-80 opacity-60"
+              onclick="loadSession('${s.id}')" title="${escapeHtml(s.title || '')}">
+            ${escapeHtml(s.title || s.id)}
+        </div>`
+    ).join("");
+}
+
+async function loadSession(sessionId) {
+    try {
+        const resp = await fetch("/api/sessions/" + sessionId);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const container = document.getElementById("chat-messages");
+        container.innerHTML = "";
+        messageHistory = [];
+        (data.messages || []).forEach(m => {
+            if (m.role === "user") {
+                appendUserMessage(m.content);
+            } else {
+                const div = document.createElement("div");
+                div.className = "message-assistant";
+                div.innerHTML = `<div class="bubble">${escapeHtml(m.content || "").replace(/\n/g, "<br>")}</div>`;
+                container.appendChild(div);
+            }
+            messageHistory.push(m);
+        });
+        container.scrollTop = container.scrollHeight;
+    } catch { /* 静默失败 */ }
+}
+
+// 页面加载时初始化
+document.addEventListener("DOMContentLoaded", () => {
+    const uid = getUserId();
+    if (uid) loadSessions();
+});
+
+// 覆盖 sidebar.html 中的 newChat（如果存在）
 const _origNewChat = window.newChat;
 window.newChat = function() {
     if (_origNewChat) _origNewChat();
     messageHistory = [];
-    _currentSessionId = null;
+    loadSessions();
 };

@@ -6,7 +6,7 @@
     <title>多智能体协作系统</title>
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet">
-    <link href="/static/css/custom.css?v=33" rel="stylesheet">
+    <link href="/static/css/custom.css" rel="stylesheet">
     <script>
         const systemStatus = {
             {% for name, model_id in role_model.items() %}
@@ -16,32 +16,23 @@
     </script>
 </head>
 <body>
-    <div class="drawer lg:drawer-open h-screen" id="drawer-container">
+    <div class="drawer lg:drawer-open" id="drawer-container">
         <input id="drawer" type="checkbox" class="drawer-toggle" />
-
-        <div class="drawer-content flex flex-col relative h-full min-h-0">
+        
+        <div class="drawer-content flex flex-col relative">
             <button onclick="toggleDrawer()" class="btn btn-square btn-ghost btn-sm absolute top-2 z-10" style="left: 2px;" title="切换侧栏">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
-            <main class="flex flex-col flex-1 min-h-0">
+            <main class="flex flex-col flex-1" style="height: 100vh;">
                 {% block content %}{% endblock %}
             </main>
         </div>
-
+        
         <div class="drawer-side">
             <label for="drawer" aria-label="关闭侧栏" class="drawer-overlay"></label>
-            <div class="flex flex-col p-3 w-72 h-full overflow-y-hidden" style="background:#F9FAFB; border-right:1px solid #eceef2;">
+            <div class="flex flex-col p-3 w-80 min-h-full bg-base-200">
                 {% include 'components/sidebar.html' %}
             </div>
-        </div>
-        <!-- 执行模式悬浮弹窗 -->
-        <div class="lane-popup" id="lane-popup" onmouseenter="cancelHideLane()" onmouseleave="hideLanePopup()">
-            <div class="lane-option active" data-value="auto" onclick="selectLane(this)">自动</div>
-            <div class="lane-option" data-value="fast" onclick="selectLane(this)">快速</div>
-            <div class="lane-option" data-value="slow" onclick="selectLane(this)">协作</div>
-            <input type="radio" name="lane_mode" id="lane-auto" value="auto" checked hidden>
-            <input type="radio" name="lane_mode" id="lane-fast" value="fast" hidden>
-            <input type="radio" name="lane_mode" id="lane-slow" value="slow" hidden>
         </div>
     </div>
     <script src="/static/js/chat.js"></script>
@@ -49,13 +40,8 @@
         function toggleDrawer() {
             const c = document.getElementById('drawer-container');
             const chk = document.getElementById('drawer');
-            if (c.classList.contains('lg:drawer-open')) {
-                chk.checked = false;
-                c.classList.remove('lg:drawer-open');
-            } else {
-                chk.checked = true;
-                c.classList.add('lg:drawer-open');
-            }
+            chk.checked = !chk.checked;
+            c.classList.toggle('lg:drawer-open');
         }
     </script>
 </body>
