@@ -636,9 +636,24 @@ function logout() {
     document.getElementById("user-display").textContent = "游客";
     document.getElementById("user-avatar").textContent = "游";
     document.getElementById("login-modal").close();
-    // 清空会话列表
+
+    // 清空聊天区
+    const chatEl = document.getElementById("chat-messages");
+    if (chatEl) {
+        chatEl.innerHTML = `
+            <div class="chat-welcome">
+                <h2 class="chat-welcome-title">多智能体协作系统</h2>
+                <p class="chat-welcome-sub">输入任务开始对话 · 支持编程 / 写作 / 分析 / 问答 / 闲聊</p>
+            </div>
+        `;
+    }
+    // 重置会话变量
+    if (typeof messageHistory !== 'undefined') messageHistory = [];
+    if (typeof _currentSessionId !== 'undefined') _currentSessionId = null;
+
+    // 清空侧栏
     const el = document.getElementById("session-list");
-    if (el) el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">请先登录以查看历史</div>';
+    if (el) el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">暂无对话记录</div>';
 }
 
 // 恢复登录状态
