@@ -6,6 +6,7 @@ __pycache__/
 # === 数据库文件（含用户/会话/向量数据，切勿提交） ===
 data.db
 rag/chroma_db/
+rag/documents/*/
 
 # === 临时文件 ===
 **/coding/tmp_code_*/
@@ -15,9 +16,6 @@ _test_*.py
 # === 输出产物（可重新运行生成） ===
 **/reports/
 **/chroma_db/
-
-# === 环境变量 ===
-.env
 
 # === 环境变量 ===
 .env
