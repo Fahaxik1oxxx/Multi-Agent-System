@@ -336,8 +336,28 @@ function getTimeCategory(updated) {
 async function loadSessionHistory() {
     const el = document.getElementById("session-list");
     if (!el) return;
-    // 获取当前用户 ID
-    const uid = localStorage.getItem("mc_uid") || "";
+    // 获取或自动创建用户 ID
+    let uid = localStorage.getItem("mc_uid") || "";
+    if (!uid) {
+        // 游客自动注册
+        const guestName = "游客_" + Math.random().toString(36).slice(2, 8);
+        try {
+            const resp = await fetch("/api/users", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: guestName }),
+            });
+            const data = await resp.json();
+            if (!data.error) {
+                localStorage.setItem("mc_uid", data.user_id);
+                localStorage.setItem("mc_uname", data.name);
+                uid = data.user_id;
+            }
+        } catch (e) {
+            el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">加载失败</div>';
+            return;
+        }
+    }
     if (!uid) {
         el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">请先登录以查看历史</div>';
         return;

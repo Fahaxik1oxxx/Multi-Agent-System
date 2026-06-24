@@ -17,13 +17,13 @@ let messageHistory = [];
 let _currentSessionId = null;
 
 // ===== 初始化 =====
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     loadKnowledgeStats();
     setupLaneMode();
     setupChatForm();
     setupKnowledgeUI();
-    // 如果已登录，加载会话历史
-    const uid = getUserId();
+    // 确保有用户 ID（游客自动注册），然后加载会话历史
+    const uid = await ensureUserId();
     if (uid && typeof loadSessionHistory === 'function') {
         loadSessionHistory();
     }
@@ -379,7 +379,7 @@ function markdownToHtml(md) {
 // ===== 会话保存（适配 db.py 后端） =====
 async function saveCurrentSession() {
     if (!messageHistory.length) return;
-    const uid = getUserId();
+    const uid = await ensureUserId();
     if (!uid) return;
     try {
         const sid = _currentSessionId || String(Date.now());
@@ -404,6 +404,29 @@ function getUserId() {
 
 function getUserName() {
     return localStorage.getItem("mc_uname") || "";
+}
+
+async function ensureUserId() {
+    let uid = localStorage.getItem("mc_uid");
+    if (uid) return uid;
+    // 游客自动注册：使用 "游客" + 短标识作为用户名
+    const guestName = "游客_" + Math.random().toString(36).slice(2, 8);
+    try {
+        const resp = await fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: guestName }),
+        });
+        const data = await resp.json();
+        if (!data.error) {
+            localStorage.setItem("mc_uid", data.user_id);
+            localStorage.setItem("mc_uname", data.name);
+            return data.user_id;
+        }
+    } catch (e) {
+        console.error("自动注册游客失败:", e);
+    }
+    return "";
 }
 
 // ===== 覆盖 sidebar.html 中的 newChat =====

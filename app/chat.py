@@ -9,14 +9,16 @@ import os
 import glob
 import re
 import threading
+import time
 
 CODING_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "coding")
 
 _TIMEOUT_SLOW = 90  # 慢车道超时秒数
 
 
-def _scan_generated_files() -> list[dict]:
-    """递归扫描 coding/ 目录下生成的图片和文档"""
+def _scan_generated_files(since: float | None = None) -> list[dict]:
+    """递归扫描 coding/ 目录下生成的图片和文档。
+    若指定 since（Unix 时间戳），仅返回该时间之后修改的文件。"""
     files = []
     for ext in ("png", "jpg", "jpeg", "gif", "bmp", "py", "md", "csv", "xlsx", "txt", "html"):
         pattern = os.path.join(CODING_DIR, "**", f"*.{ext}")
@@ -26,6 +28,8 @@ def _scan_generated_files() -> list[dict]:
             if name == "sales_data.csv":
                 continue
             if ext_lower in ("png", "jpg", "jpeg", "gif", "bmp") and os.path.getsize(fp) < 100:
+                continue
+            if since is not None and os.path.getmtime(fp) <= since:
                 continue
             files.append({"name": name, "path": fp, "ext": ext_lower})
     return files
@@ -39,6 +43,9 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
 
     lane_mode: "auto" | "fast" | "slow"
     """
+    # 记录执行前时间戳，仅返回本次执行期间新生成的文件
+    _ts_before = time.time()
+
     # ── Phase 1: Router 分类（auto 模式）或手动 ──
     if lane_mode == "fast":
         task_type, complexity = "问答", "轻"
@@ -79,11 +86,12 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
 
     # ── Phase 3: 车道分发 ──
     if complexity == "轻":
-        return _run_fast(user_input, task_type, history)
-    return _run_slow(user_input, task_type, history)
+        return _run_fast(user_input, task_type, history, _ts_before)
+    return _run_slow(user_input, task_type, history, _ts_before)
 
 
-def _run_fast(user_input: str, task_type: str, history: list[dict] | None) -> dict:
+def _run_fast(user_input: str, task_type: str, history: list[dict] | None,
+              since: float) -> dict:
     """快车道：Bot 直接回复"""
     from workflow import build_workflow
 
@@ -108,11 +116,12 @@ def _run_fast(user_input: str, task_type: str, history: list[dict] | None) -> di
         "thinking": _parse_thinking(result.get("agent_messages", [])),
         "task_type": task_type,
         "speaking_log": result.get("speaking_log", []),
-        "generated_files": _scan_generated_files(),
+        "generated_files": _scan_generated_files(since),
     }
 
 
-def _run_slow(user_input: str, task_type: str, history: list[dict] | None) -> dict:
+def _run_slow(user_input: str, task_type: str, history: list[dict] | None,
+              since: float) -> dict:
     """慢车道：多 Agent 协作流水线（带超时）"""
     from workflow import build_workflow
 
@@ -149,7 +158,7 @@ def _run_slow(user_input: str, task_type: str, history: list[dict] | None) -> di
             "thinking": [],
             "task_type": task_type,
             "speaking_log": [],
-            "generated_files": _scan_generated_files(),
+            "generated_files": _scan_generated_files(since),
         }
 
     if "error" in result_container:
@@ -172,7 +181,7 @@ def _run_slow(user_input: str, task_type: str, history: list[dict] | None) -> di
         "thinking": thinking,
         "task_type": task_type,
         "speaking_log": result.get("speaking_log", []),
-        "generated_files": _scan_generated_files(),
+        "generated_files": _scan_generated_files(since),
     }
 
 
