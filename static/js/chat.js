@@ -468,7 +468,7 @@ window.newChat = function() {
 
 // ===== 游客会话（sessionStorage） =====
 function isGuest() {
-    return !localStorage.getItem("auth_user");
+    return !localStorage.getItem("auth_token");
 }
 
 function loadGuestSessions() {

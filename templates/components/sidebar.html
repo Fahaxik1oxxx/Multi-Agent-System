@@ -502,22 +502,24 @@ loadSessionHistory();
 let authMode = "login";
 
 function refreshAuthUI() {
-    var saved = JSON.parse(localStorage.getItem("auth_user") || "{}");
+    var token = localStorage.getItem("auth_token");
+    var uname = localStorage.getItem("mc_uname") || "";
     var body = document.getElementById("auth-body");
     var tabs = document.getElementById("auth-tabs");
     var form = document.getElementById("auth-form");
     var msg = document.getElementById("auth-msg");
     var title = document.getElementById("login-modal-title");
     if (!body) return;
-    if (saved.email) {
+    if (token && uname) {
         // 已登录状态
+        updateAuthUI(uname);
         if (tabs) tabs.style.display = "none";
         if (form) form.style.display = "none";
         if (msg) msg.textContent = "";
         if (title) title.textContent = "账户";
         body.innerHTML = '<div class="flex flex-col items-center gap-4 py-4">' +
-            '<span class="w-16 h-16 rounded-full bg-gray-100 inline-flex items-center justify-center text-xl font-bold" style="color:var(--brand-primary);">' + saved.email.charAt(0).toUpperCase() + '</span>' +
-            '<span class="text-sm font-medium" style="color:var(--text-primary);">' + escapeHtmlSidebar(saved.email) + '</span>' +
+            '<span class="w-16 h-16 rounded-full bg-gray-100 inline-flex items-center justify-center text-xl font-bold" style="color:var(--brand-primary);">' + uname.charAt(0).toUpperCase() + '</span>' +
+            '<span class="text-sm font-medium" style="color:var(--text-primary);">' + escapeHtmlSidebar(uname) + '</span>' +
             '<button onclick="logout()" class="config-btn config-btn-outline" style="max-width:200px;">退出登录</button>' +
             '</div>';
         return;
@@ -554,127 +556,114 @@ function switchAuthTab(mode) {
 }
 
 async function submitAuth() {
-    var email = document.getElementById("auth-email").value.trim();
+    var name = document.getElementById("auth-email").value.trim();
     var password = document.getElementById("auth-password").value.trim();
     var msg = document.getElementById("auth-msg");
-    if (!email || !password) { msg.textContent = "请填写完整"; return; }
+    if (!name || !password) { msg.textContent = "请填写完整"; return; }
 
     if (authMode === "register") {
         var confirm = document.getElementById("auth-confirm").value.trim();
         if (password !== confirm) { msg.textContent = "两次密码不一致"; return; }
-        // 注册：保存到 localStorage + 同步到 SQLite
-        localStorage.setItem("auth_user", JSON.stringify({ email, password }));
-        // 同步到后端 SQLite（以邮箱名作为用户名）
         try {
-            const resp = await fetch("/api/users", {
+            const resp = await fetch("/api/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: email }),
+                body: JSON.stringify({ name: name, email: name, password: password }),
             });
             const data = await resp.json();
-            if (!data.error) {
-                localStorage.setItem("mc_uid", data.user_id);
-                localStorage.setItem("mc_uname", data.name);
-            }
-        } catch(e) { /* 后端不可用时仍可本地登录 */ }
-        msg.textContent = "注册成功，请登录";
-        switchAuthTab("login");
-    } else {
-        // 登录：先查 localStorage，再查后端
-        var saved = JSON.parse(localStorage.getItem("auth_user") || "{}");
-        if (saved.email === email && saved.password === password) {
-            // 本地验证通过，确保后端也有此用户
-            try {
-                const resp = await fetch("/api/users", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ name: email }),
-                });
-                const data = await resp.json();
-                if (!data.error) {
-                    localStorage.setItem("mc_uid", data.user_id);
-                    localStorage.setItem("mc_uname", data.name);
-                }
-            } catch(e) {}
-            document.getElementById("user-display").textContent = email;
-            document.getElementById("user-avatar").textContent = email.charAt(0).toUpperCase();
+            if (data.error) { msg.textContent = data.error; return; }
+            // 保存 token
+            localStorage.setItem("auth_token", data.token);
+            localStorage.setItem("mc_uname", data.name);
+            // 迁移游客会话
+            await migrateGuestSessions();
+            // 更新 UI
+            updateAuthUI(name);
             document.getElementById("login-modal").close();
-
-            // 迁移游客对话到数据库
-            const guestSessions = loadGuestSessions();
-            if (guestSessions.length > 0) {
-                const uid = localStorage.getItem("mc_uid");
-                if (!uid) {
-                    console.warn("无法迁移游客会话：未获取到用户 ID");
-                } else {
-                    const remaining = [];
-                    for (const s of guestSessions) {
-                        try {
-                            await fetch("/api/sessions", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    id: s.id,
-                                    user_id: uid,
-                                    messages: s.messages,
-                                    title: s.title,
-                                }),
-                            });
-                        } catch (e) {
-                            console.warn("迁移游客会话失败:", s.id, e);
-                            remaining.push(s);
-                        }
-                    }
-                    if (remaining.length > 0) {
-                        saveGuestSessions(remaining);
-                    } else {
-                        sessionStorage.removeItem("guest_sessions");
-                    }
-                }
-            }
-
             msg.textContent = "";
             loadSessionHistory();
-        } else {
-            msg.textContent = "邮箱或密码错误";
+        } catch(e) { msg.textContent = "注册失败"; }
+    } else {
+        try {
+            const resp = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: name, password: password }),
+            });
+            const data = await resp.json();
+            if (data.error) { msg.textContent = data.error; return; }
+            localStorage.setItem("auth_token", data.token);
+            localStorage.setItem("mc_uname", data.name);
+            await migrateGuestSessions();
+            updateAuthUI(name);
+            document.getElementById("login-modal").close();
+            msg.textContent = "";
+            loadSessionHistory();
+        } catch(e) { msg.textContent = "登录失败"; }
+    }
+}
+
+function updateAuthUI(name) {
+    document.getElementById("user-display").textContent = name;
+    document.getElementById("user-avatar").textContent = name.charAt(0).toUpperCase();
+}
+
+async function migrateGuestSessions() {
+    const guestSessions = typeof loadGuestSessions === 'function' ? loadGuestSessions() : [];
+    if (guestSessions.length === 0) return;
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+    const remaining = [];
+    for (const s of guestSessions) {
+        try {
+            await fetch("/api/sessions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + token,
+                },
+                body: JSON.stringify({ id: s.id, messages: s.messages, title: s.title }),
+            });
+        } catch (e) {
+            console.warn("迁移失败:", s.id, e);
+            remaining.push(s);
         }
+    }
+    if (remaining.length > 0) {
+        if (typeof saveGuestSessions === 'function') saveGuestSessions(remaining);
+    } else {
+        sessionStorage.removeItem("guest_sessions");
     }
 }
 
 function logout() {
     if (!confirm("确认退出登录？")) return;
-    localStorage.removeItem("auth_user");
-    localStorage.removeItem("mc_uid");
+    // 调用后端删除 token
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+        try { await fetch("/api/auth/logout", { method: "POST", headers: { "Authorization": "Bearer " + token } }); } catch(e) {}
+    }
+    localStorage.removeItem("auth_token");
     localStorage.removeItem("mc_uname");
     document.getElementById("user-display").textContent = "游客";
     document.getElementById("user-avatar").textContent = "游";
     document.getElementById("login-modal").close();
-
     // 清空聊天区
     const chatEl = document.getElementById("chat-messages");
-    if (chatEl) {
-        chatEl.innerHTML = `
-            <div class="chat-welcome">
-                <h2 class="chat-welcome-title">多智能体协作系统</h2>
-                <p class="chat-welcome-sub">输入任务开始对话 · 支持编程 / 写作 / 分析 / 问答 / 闲聊</p>
-            </div>
-        `;
-    }
-    // 重置会话变量
+    if (chatEl) { chatEl.innerHTML = '<div class="chat-welcome"><h2 class="chat-welcome-title">多智能体协作系统</h2><p class="chat-welcome-sub">输入任务开始对话 · 支持编程 / 写作 / 分析 / 问答 / 闲聊</p></div>'; }
     if (typeof messageHistory !== 'undefined') messageHistory = [];
     if (typeof _currentSessionId !== 'undefined') _currentSessionId = null;
-
-    // 清空侧栏
     const el = document.getElementById("session-list");
     if (el) el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">暂无对话记录</div>';
 }
 
 // 恢复登录状态
 (function() {
-    var saved = JSON.parse(localStorage.getItem("auth_user") || "{}");
-    if (saved.email) {
-        document.getElementById("user-display").textContent = saved.email;
-        document.getElementById("user-avatar").textContent = saved.email.charAt(0).toUpperCase();
+    var token = localStorage.getItem("auth_token");
+    var uname = localStorage.getItem("mc_uname");
+    if (token && uname) {
+        document.getElementById("user-display").textContent = uname;
+        document.getElementById("user-avatar").textContent = uname.charAt(0).toUpperCase();
     }
 })();
 </script>
