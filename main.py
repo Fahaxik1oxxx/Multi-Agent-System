@@ -234,14 +234,19 @@ async def delete_session(request: Request, session_id: str):
 
 @app.post("/api/users")
 async def create_user(request: Request):
-    """创建用户（幂等），返回 {user_id, name}"""
+    """创建用户，返回 {user_id, name, token}"""
     db = _get_db(request)
     data = await request.json()
     name = data.get("name", "").strip()
+    email = data.get("email", "").strip()
+    password = data.get("password", "")
     if not name:
         return JSONResponse({"error": "用户名不能为空"}, status_code=400)
-    user = db.create_user(name)
-    return JSONResponse({"user_id": user["id"], "name": user["name"]})
+    try:
+        user = db.create_user(name, email, password)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+    return JSONResponse({"user_id": user["id"], "name": user["name"], "token": user["token"]})
 
 
 @app.get("/api/users")

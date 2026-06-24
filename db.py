@@ -8,6 +8,8 @@ import sqlite3
 import uuid
 from contextlib import contextmanager
 
+import bcrypt
+
 
 class Database:
     """SQLite 数据库封装，管理用户和会话两张表。"""
@@ -25,6 +27,8 @@ class Database:
                 CREATE TABLE IF NOT EXISTS users (
                     id         TEXT PRIMARY KEY,
                     name       TEXT NOT NULL UNIQUE,
+                    email      TEXT DEFAULT '',
+                    password   TEXT NOT NULL DEFAULT '',
                     created_at TEXT DEFAULT (datetime('now', 'localtime'))
                 );
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -33,6 +37,12 @@ class Database:
                     title      TEXT DEFAULT '',
                     messages   TEXT DEFAULT '[]',
                     updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                CREATE TABLE IF NOT EXISTS auth_tokens (
+                    token      TEXT PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now', 'localtime')),
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 );
             """)
@@ -54,20 +64,22 @@ class Database:
 
     # ── 用户 ──
 
-    def create_user(self, name: str) -> dict:
-        """创建用户。已存在则直接返回已有记录（幂等）。
-        返回 {"id": str, "name": str}"""
+    def create_user(self, name: str, email: str = "", password: str = "") -> dict:
+        """创建用户。返回 {"id", "name", "token"}。已存在则报错。"""
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT id, name FROM users WHERE name = ?", (name,)
+            existing = conn.execute(
+                "SELECT id FROM users WHERE name = ?", (name,)
             ).fetchone()
-            if row:
-                return {"id": row["id"], "name": row["name"]}
+            if existing:
+                raise ValueError(f"用户名已存在: {name}")
             uid = str(uuid.uuid4())[:8]
+            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             conn.execute(
-                "INSERT INTO users (id, name) VALUES (?, ?)", (uid, name)
+                "INSERT INTO users (id, name, email, password) VALUES (?, ?, ?, ?)",
+                (uid, name, email, hashed),
             )
-            return {"id": uid, "name": name}
+            token = self.create_token(uid, conn)
+            return {"id": uid, "name": name, "token": token}
 
     def get_user(self, name: str) -> dict | None:
         """按名称查找用户。找到返回 {"id", "name"}，否则 None。"""
@@ -78,6 +90,55 @@ class Database:
             if row:
                 return {"id": row["id"], "name": row["name"]}
             return None
+
+    # ── 认证 ──
+
+    def create_token(self, user_id: str, _conn=None) -> str:
+        """为用户生成 auth token，返回 token 字符串"""
+        token = str(uuid.uuid4())
+        if _conn is not None:
+            _conn.execute(
+                "INSERT INTO auth_tokens (token, user_id) VALUES (?, ?)",
+                (token, user_id),
+            )
+        else:
+            with self._conn() as conn:
+                conn.execute(
+                    "INSERT INTO auth_tokens (token, user_id) VALUES (?, ?)",
+                    (token, user_id),
+                )
+        return token
+
+    def delete_token(self, token: str) -> bool:
+        """删除 token，返回是否成功"""
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM auth_tokens WHERE token = ?", (token,))
+            return cur.rowcount > 0
+
+    def authenticate(self, name: str, password: str) -> dict | None:
+        """验证用户名密码，成功返回 {"id", "name", "token"}，失败返回 None"""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT id, name, password FROM users WHERE name = ?", (name,)
+            ).fetchone()
+            if not row:
+                return None
+            if not bcrypt.checkpw(password.encode("utf-8"), row["password"].encode("utf-8")):
+                return None
+            token = self.create_token(row["id"])
+            return {"id": row["id"], "name": row["name"], "token": token}
+
+    def get_user_by_token(self, token: str) -> dict | None:
+        """从 token 获取用户信息，返回 {"id", "name"} 或 None"""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT u.id, u.name FROM users u "
+                "JOIN auth_tokens t ON u.id = t.user_id "
+                "WHERE t.token = ?", (token,)
+            ).fetchone()
+            if not row:
+                return None
+            return {"id": row["id"], "name": row["name"]}
 
     # ── 会话 ──
 
