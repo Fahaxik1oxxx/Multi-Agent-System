@@ -42,6 +42,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS auth_tokens (
                     token      TEXT PRIMARY KEY,
                     user_id    TEXT NOT NULL,
+                    expires_at TEXT NOT NULL DEFAULT (datetime('now', '+7 days', 'localtime')),
                     created_at TEXT DEFAULT (datetime('now', 'localtime')),
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 );
@@ -94,19 +95,15 @@ class Database:
     # ── 认证 ──
 
     def create_token(self, user_id: str, _conn=None) -> str:
-        """为用户生成 auth token，返回 token 字符串"""
+        """为用户生成 auth token（7 天有效期），返回 token 字符串"""
         token = str(uuid.uuid4())
+        sql = ("INSERT INTO auth_tokens (token, user_id, expires_at) "
+               "VALUES (?, ?, datetime('now', '+7 days', 'localtime'))")
         if _conn is not None:
-            _conn.execute(
-                "INSERT INTO auth_tokens (token, user_id) VALUES (?, ?)",
-                (token, user_id),
-            )
+            _conn.execute(sql, (token, user_id))
         else:
             with self._conn() as conn:
-                conn.execute(
-                    "INSERT INTO auth_tokens (token, user_id) VALUES (?, ?)",
-                    (token, user_id),
-                )
+                conn.execute(sql, (token, user_id))
         return token
 
     def delete_token(self, token: str) -> bool:
@@ -129,16 +126,50 @@ class Database:
             return {"id": row["id"], "name": row["name"], "token": token}
 
     def get_user_by_token(self, token: str) -> dict | None:
-        """从 token 获取用户信息，返回 {"id", "name"} 或 None"""
+        """从 token 获取用户信息（自动过滤过期 Token），返回 {"id", "name"} 或 None"""
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT u.id, u.name FROM users u "
                 "JOIN auth_tokens t ON u.id = t.user_id "
-                "WHERE t.token = ?", (token,)
+                "WHERE t.token = ? AND t.expires_at > datetime('now', 'localtime')",
+                (token,)
             ).fetchone()
             if not row:
                 return None
             return {"id": row["id"], "name": row["name"]}
+
+    def renew_token(self, token: str) -> bool:
+        """续期 Token 到 7 天后，返回是否成功"""
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE auth_tokens SET expires_at = datetime('now', '+7 days', 'localtime') "
+                "WHERE token = ?", (token,)
+            )
+            return cur.rowcount > 0
+
+    def cleanup_user_tokens(self, user_id: str):
+        """清理指定用户的所有过期 Token"""
+        with self._conn() as conn:
+            conn.execute(
+                "DELETE FROM auth_tokens WHERE user_id = ? "
+                "AND expires_at < datetime('now', 'localtime')",
+                (user_id,)
+            )
+
+    def is_token_expired(self, token: str) -> bool:
+        """检查 Token 是否存在且已过期（不存在返回 False）"""
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT expires_at FROM auth_tokens WHERE token = ?", (token,)
+            ).fetchone()
+            if not row:
+                return False
+            from datetime import datetime
+            try:
+                expiry = datetime.fromisoformat(row["expires_at"])
+            except (ValueError, TypeError):
+                return True
+            return expiry < datetime.now()
 
     # ── 会话 ──
 
