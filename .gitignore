@@ -13,6 +13,9 @@ rag/documents/*/
 **/coding/*.png
 _test_*.py
 
+# === 调试日志 ===
+db_debug.log
+
 # === 输出产物（可重新运行生成） ===
 **/reports/
 **/chroma_db/

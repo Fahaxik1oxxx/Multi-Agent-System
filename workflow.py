@@ -59,8 +59,6 @@ def _route_test(state: WorkflowState) -> str:
     fix_count = state.get("fix_count", 0)
 
     if "✅" in test_result:
-        if not state.get("need_report", True):
-            return "end"
         # 有代码产出且 exitcode 通过 → summarizer
         return "summarizer"
 
@@ -356,11 +354,15 @@ def summarizer_node(state: WorkflowState) -> dict:
         "使用 Markdown 格式，包括：任务概述、执行步骤、关键产出、结论。\n\n" + "\n\n".join(context_parts)
     )
     response = llm.invoke(prompt)
-    final_output = response.content if hasattr(response, "content") else str(response)
+    report = response.content if hasattr(response, "content") else str(response)
+    if state.get("need_report", True):
+        final_output = report
+    else:
+        final_output = state.get("code_or_draft", "")
 
     return {
         "final_output": final_output,
-        "agent_messages": [{"role": "assistant", "content": final_output, "name": "Summarizer"}],
+        "agent_messages": [{"role": "assistant", "content": report, "name": "Summarizer"}],
         "speaking_log": [
             _log_speak("Tester", "Summarizer"),
             _log_speak("Summarizer", "结束"),
@@ -409,7 +411,7 @@ def build_workflow() -> StateGraph:
     wf.add_conditional_edges(
         "tester",
         _route_test,
-        {"coder": "coder", "writer": "writer", "summarizer": "summarizer", "end": END},
+        {"coder": "coder", "writer": "writer", "summarizer": "summarizer"},
     )
     wf.add_edge("summarizer", END)
 
