@@ -36,7 +36,7 @@ class Database:
                     user_id    TEXT NOT NULL,
                     title      TEXT DEFAULT '',
                     messages   TEXT DEFAULT '[]',
-                    updated_at TEXT DEFAULT (datetime('now', 'localtime')),p
+                    updated_at TEXT DEFAULT (datetime('now', 'localtime')),
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 );
                 CREATE TABLE IF NOT EXISTS auth_tokens (
