@@ -1,0 +1,19 @@
+# .ruff.toml
+
+line-length = 120
+target-version = "py310"
+
+[lint]
+# 启用的规则集：
+# E: pycodestyle 错误
+# F: Pyflakes (如未使用的 import、未定义的变量)
+# I: isort (自动导入排序)
+select = ["E", "F", "I"]
+# 忽略的特定规则
+ignore = []
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
