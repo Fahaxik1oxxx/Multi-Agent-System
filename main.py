@@ -28,13 +28,13 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import config as _cfg
-from db import Database
+from user.db import Database
 
 try:
     get_model_display = _cfg.get_model_display
@@ -66,8 +66,10 @@ templates = Jinja2Templates(directory=os.path.join(_PROJECT_DIR, "templates"))
 from app.knowledge import router as knowledge_router
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["知识库"])
 
-from app.auth import router as auth_router, require_auth
+from user.routes import auth_router, session_router, user_router
 app.include_router(auth_router, prefix="/api/auth", tags=["认证"])
+app.include_router(session_router, prefix="/api/sessions", tags=["会话"])
+app.include_router(user_router, prefix="/api/user", tags=["用户配置"])
 
 
 @app.get("/", response_class=HTMLResponse, tags=["页面"])
@@ -79,6 +81,7 @@ async def index(request: Request):
         context={
             "role_model": ROLE_MODEL,
             "get_model_display": get_model_display,
+            "model_pool": _cfg.MODEL_POOL,
         },
     )
 
@@ -92,11 +95,6 @@ async def chat(request: Request):
     user_input = data.get("message", "")
     lane_mode = data.get("lane_mode", "auto")
     history = data.get("history", [])
-    model_config = data.get("model_config", {})
-
-    if model_config:
-        _model_config["roles"] = model_config
-
     try:
         result = run_chat_pipeline(user_input, history=history, lane_mode=lane_mode)
         return JSONResponse(result)
@@ -138,101 +136,6 @@ async def generate_report(request: Request):
         report_path = ""
 
     return JSONResponse({"content": report, "path": report_path})
-
-
-# ──── 模型配置（运行时，内存存储）────
-
-_model_config: dict = {
-    "roles": {},
-    "custom_models": [],
-}
-
-
-@app.post("/api/config/roles")
-async def save_roles(request: Request):
-    """保存角色→模型映射"""
-    data = await request.json()
-    _model_config["roles"] = data.get("roles", {})
-    return JSONResponse({"status": "ok"})
-
-
-@app.get("/api/config/roles")
-async def get_roles():
-    return JSONResponse({"roles": _model_config["roles"]})
-
-
-@app.post("/api/config/models")
-async def add_model(request: Request):
-    """添加自定义模型"""
-    data = await request.json()
-    _model_config["custom_models"].append({
-        "name": data.get("name"),
-        "base_url": data.get("base_url"),
-        "api_key": data.get("api_key"),
-    })
-    return JSONResponse({"status": "ok"})
-
-
-@app.delete("/api/config/models/{model_name}")
-async def delete_model(model_name: str):
-    _model_config["custom_models"] = [
-        m for m in _model_config["custom_models"] if m["name"] != model_name
-    ]
-    return JSONResponse({"status": "ok"})
-
-
-# ──── 会话管理（SQLite）────
-
-def _get_db(request: Request):
-    return request.app.state.db
-
-
-@app.get("/api/sessions")
-async def list_sessions(request: Request, user: dict = Depends(require_auth)):
-    """列出当前用户的会话摘要"""
-    db = _get_db(request)
-    summary = db.list_sessions(user["user_id"])
-    return JSONResponse(summary)
-
-
-@app.post("/api/sessions")
-async def save_session(request: Request, user: dict = Depends(require_auth)):
-    """保存/创建会话"""
-    db = _get_db(request)
-    data = await request.json()
-    sid = data.get("id") or str(int(__import__("time").time() * 1000))
-    title = data.get("title", "")
-    result = db.save_session(sid, user["user_id"], data.get("messages", []), title)
-    return JSONResponse(result)
-
-
-@app.get("/api/sessions/{session_id}")
-async def get_session(request: Request, session_id: str, user: dict = Depends(require_auth)):
-    """获取单个会话的完整消息"""
-    db = _get_db(request)
-    s = db.get_session(session_id)
-    if not s:
-        return JSONResponse({"error": "会话不存在"}, status_code=404)
-    if s["user_id"] != user["user_id"]:
-        return JSONResponse({"error": "无权访问"}, status_code=403)
-    # 向后兼容：保持旧响应格式（不含 user_id 顶层字段）
-    return JSONResponse({
-        "messages": s["messages"],
-        "updated": s["updated"],
-    })
-
-
-@app.delete("/api/sessions/{session_id}")
-async def delete_session(request: Request, session_id: str, user: dict = Depends(require_auth)):
-    """删除会话"""
-    db = _get_db(request)
-    s = db.get_session(session_id)
-    if not s:
-        return JSONResponse({"error": "会话不存在"}, status_code=404)
-    if s["user_id"] != user["user_id"]:
-        return JSONResponse({"error": "无权访问"}, status_code=403)
-    db.delete_session(session_id)
-    return JSONResponse({"status": "ok"})
 
 
 # ──── 启动 ────

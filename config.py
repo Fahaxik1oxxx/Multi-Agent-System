@@ -1,29 +1,3 @@
-"""
-LLM 配置。
-
-【第一次使用？】
-  1. 设置 DEEPSEEK_API_KEY 环境变量（PyCharm: Run → Edit Config → Env）
-  2. 在下方 MODEL_POOL 添加你的模型：
-     - 格式： "编号-标签": {"model": "模型名", "api_key": ..., "base_url": ...}
-     - api_key 值：
-       * 云端 API (DeepSeek / OpenAI 等) → os.getenv("你的环境变量名")
-       * 本地 Ollama → "ollama"
-       * 直写字符串（仅测试用，不要提交代码库）
-  3. 在 ROLE_MODEL 里给每个角色指定要用的模型（填 MODEL_POOL 的 key）
-  4. pip install -r requirements.txt
-  5. uvicorn main:app --reload --port 8501
-
-【示例：添加 GPT-4o】
-  MODEL_POOL = {
-      "a-deepseek": {...},
-      "b-qwen": {...},
-      "c-gpt4o": {"model": "gpt-4o-mini",
-                  "api_key": os.getenv("OPENAI_API_KEY"),
-                  "base_url": "https://api.openai.com/v1"},
-  }
-  ROLE_MODEL = {"Planner": "c-gpt4o", ...}  # 引号内填 MODEL_POOL 的 key
-"""
-
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -40,7 +14,6 @@ MODEL_POOL = {
         "model": "deepseek-v4-flash",
         "api_key": os.getenv("DEEPSEEK_API_KEY"),
         "base_url": "https://api.deepseek.com/v1",
-        "price": [0.001, 0.001],
     },
 }
 

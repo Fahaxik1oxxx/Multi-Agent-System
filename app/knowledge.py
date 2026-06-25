@@ -3,7 +3,7 @@ import os
 from fastapi import APIRouter, UploadFile, File, Depends
 from fastapi.responses import JSONResponse
 
-from app.auth import require_auth
+from user.helpers import require_auth
 
 router = APIRouter()
 

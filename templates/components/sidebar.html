@@ -54,31 +54,17 @@
             <!-- 左导航 -->
             <div class="w-36 shrink-0" style="background:var(--bg-chat); border-right:1px solid #eef0f2;">
                 <div class="p-3 flex flex-col gap-0.5">
-                    <div class="config-tab active" data-tab="models" onclick="switchConfigTab(this)">添加模型</div>
+                    <div class="config-tab active" data-tab="models" onclick="switchConfigTab(this)">模型管理</div>
                     <div class="config-tab" data-tab="roles" onclick="switchConfigTab(this)">角色分配</div>
                     <div class="config-tab" data-tab="knowledge" onclick="switchConfigTab(this)">知识库</div>
                 </div>
             </div>
             <!-- 右面板 -->
             <div class="flex-1 p-5 overflow-y-auto" id="config-pane">
-                <!-- 添加模型 -->
+                <!-- 模型管理 -->
                 <div class="config-section" id="config-models">
-                    <div class="flex flex-col gap-3">
-                        <div>
-                            <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">模型名</label>
-                            <input id="md-name" class="config-input" placeholder="例: claude-3-opus">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">API 地址</label>
-                            <input id="md-url" class="config-input" placeholder="https://api.xxx.com/v1">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">API Key</label>
-                            <input id="md-key" type="password" class="config-input" placeholder="sk-...">
-                        </div>
-                        <button onclick="addCustomModel()" class="config-btn">添加到模型池</button>
-                        <div id="custom-models" class="text-xs" style="color:var(--text-secondary);"></div>
-                    </div>
+                    <div id="model-list" class="text-sm space-y-2"></div>
+                    <button onclick="document.getElementById('add-model-modal').showModal()" class="config-btn mt-3" style="width:100%;">+ 添加模型</button>
                 </div>
                 <!-- 角色分配 -->
                 <div class="config-section hidden" id="config-roles">
@@ -120,7 +106,7 @@
             </div>
             <!-- 表单 -->
             <div id="auth-form" class="flex flex-col gap-3">
-                <input id="auth-email" type="email" class="config-input" placeholder="邮箱">
+<input id="auth-name" type="text" class="config-input" placeholder="用户名">
                 <input id="auth-password" type="password" class="config-input" placeholder="密码">
                 <div id="auth-confirm-wrap" class="hidden">
                     <input id="auth-confirm" type="password" class="config-input" placeholder="确认密码">
@@ -132,62 +118,210 @@
     </div>
 </dialog>
 
+<!-- 添加模型弹窗 -->
+<dialog id="add-model-modal" class="modal">
+    <div class="modal-box" style="max-width:480px;">
+        <div class="flex items-center justify-between px-0 py-2">
+            <h3 class="text-base font-semibold" style="color:var(--text-primary);">添加自定义模型</h3>
+            <form method="dialog">
+                <button class="modal-close">✕</button>
+            </form>
+        </div>
+        <div class="flex flex-col gap-3 mt-2">
+            <div>
+                <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">标识 (key)</label>
+                <input id="am-key" class="config-input" placeholder="例: my-gpt4">
+            </div>
+            <div>
+                <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">显示名</label>
+                <input id="am-name" class="config-input" placeholder="例: GPT-4o">
+            </div>
+            <div>
+                <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">API 地址</label>
+                <input id="am-baseurl" class="config-input" placeholder="https://api.xxx.com/v1">
+            </div>
+            <div>
+                <label class="block text-xs font-medium mb-1" style="color:var(--text-secondary);">API Key</label>
+                <input id="am-apikey" type="password" class="config-input" placeholder="sk-...">
+            </div>
+            <p id="am-msg" class="text-xs" style="color:var(--text-secondary);min-height:1em;"></p>
+            <button onclick="addCustomModel()" class="config-btn">添加</button>
+        </div>
+    </div>
+</dialog>
+
 <script>
-const DEFAULT_POOL = ["DeepSeek Flash", "DeepSeek Pro", "Qwen 7B", "GPT-4o Mini", "Claude Haiku"];
-const ROLES = Object.keys(systemStatus || {});
+const ROLES = systemConfig.roles || Object.keys(systemStatus || {});
 let customModels = JSON.parse(localStorage.getItem("mc_custom") || "[]");
 let currentRoles = {};
 
-ROLES.forEach(r => { currentRoles[r] = systemStatus[r] || DEFAULT_POOL[0]; });
+// 初始化：从系统默认开始，用 localStorage 覆盖
+ROLES.forEach(r => { currentRoles[r] = systemConfig.default_roles[r]; });
 const saved = JSON.parse(localStorage.getItem("mc_roles") || "{}");
 Object.keys(saved).forEach(k => { if (k in currentRoles) currentRoles[k] = saved[k]; });
 
+renderModelList();
+
+function _poolDisplay(key) {
+    if (systemConfig.model_pool[key]) return systemConfig.model_pool[key];
+    const m = customModels.find(c => c.key === key);
+    return m ? m.model : key;
+}
+
+function _poolKeys() {
+    const sys = Object.keys(systemConfig.model_pool);
+    const cust = customModels.map(m => m.key);
+    const seen = {};
+    sys.forEach(k => { seen[k] = true; });
+    return sys.concat(cust.filter(k => !seen[k]));
+}
+
 function renderDropdowns() {
-    const pool = [...DEFAULT_POOL, ...customModels.map(m => m.name)];
+    const pool = _poolKeys();
     const el = document.getElementById("role-dropdowns");
     if (!el) return;
     el.innerHTML = ROLES.map(r => `
         <div class="flex items-center justify-between gap-1 mb-1">
             <span class="opacity-70 w-16">${r}</span>
             <select onchange="updateRole('${r}',this.value)" class="config-select flex-1 max-w-36">
-                ${pool.map(m => `<option ${m === currentRoles[r] ? "selected" : ""}>${m}</option>`).join("")}
+                ${pool.map(k => `<option value="${k}" ${k === currentRoles[r] ? "selected" : ""}>${_poolDisplay(k)}</option>`).join("")}
             </select>
         </div>
     `).join("");
-    renderCustomModels();
 }
 
-function updateRole(role, model) {
-    currentRoles[role] = model;
+function updateRole(role, key) {
+    currentRoles[role] = key;
     localStorage.setItem("mc_roles", JSON.stringify(currentRoles));
+    _syncRolesToServer();
 }
 
-function renderCustomModels() {
-    const el = document.getElementById("custom-models");
+function renderModelList() {
+    const el = document.getElementById("model-list");
     if (!el) return;
-    if (!customModels.length) { el.innerHTML = ""; return; }
-    el.innerHTML = customModels.map((m, i) =>
-        `<span class="badge badge-outline badge-sm mr-1 mb-1">${m.name} <span class="cursor-pointer ml-1 opacity-50" onclick="delModel(${i})">x</span></span>`
-    ).join("");
+    var sysKeys = Object.keys(systemConfig.model_pool);
+    var html = "";
+    if (sysKeys.length) {
+        html += '<div class="text-xs font-medium mb-1" style="color:var(--text-secondary);">系统模型</div>';
+        sysKeys.forEach(function(k) {
+            html += '<div class="flex items-center justify-between py-1 px-2 rounded" style="background:var(--bg-chat);"><span>' + escapeHtmlSidebar(systemConfig.model_pool[k]) + '</span><span class="text-xs opacity-40">默认</span></div>';
+        });
+    }
+    if (customModels.length) {
+        html += '<div class="text-xs font-medium mt-3 mb-1" style="color:var(--text-secondary);">自定义模型</div>';
+        customModels.forEach(function(m) {
+            html += '<div class="flex items-center justify-between py-1 px-2 rounded" style="background:var(--bg-chat);"><span>' + escapeHtmlSidebar(m.model) + ' <span class="text-xs opacity-50">(' + m.key + ')</span></span><span class="cursor-pointer text-xs" style="color:#ef4444;" onclick="delModel(\'' + m.key + '\')">删除</span></div>';
+        });
+    }
+    if (!sysKeys.length && !customModels.length) {
+        html = '<div class="text-xs opacity-40 text-center py-4">暂无模型</div>';
+    }
+    el.innerHTML = html;
 }
 
 function addCustomModel() {
-    const name = document.getElementById("md-name").value.trim();
-    const url = document.getElementById("md-url").value.trim();
-    const key = document.getElementById("md-key").value.trim();
-    if (!name) return;
-    customModels.push({ name, url, key });
+    const key = document.getElementById("am-key").value.trim();
+    const model = document.getElementById("am-name").value.trim();
+    const base_url = document.getElementById("am-baseurl").value.trim();
+    const api_key = document.getElementById("am-apikey").value.trim();
+    const msg = document.getElementById("am-msg");
+    if (msg) msg.textContent = "";
+
+    if (!key) { msg.textContent = "请输入模型标识"; return; }
+    if (!model) { msg.textContent = "请输入模型名称"; return; }
+    if (!api_key) { msg.textContent = "请输入 API Key"; return; }
+
+    if (systemConfig.model_pool[key]) {
+        msg.textContent = '标识 "' + key + '" 与系统模型冲突';
+        return;
+    }
+    if (customModels.some(function(m) { return m.key === key; })) {
+        msg.textContent = '自定义模型标识 "' + key + '" 已存在';
+        return;
+    }
+
+    var entry = { key: key, model: model, base_url: base_url, api_key: api_key };
+    customModels.push(entry);
     localStorage.setItem("mc_custom", JSON.stringify(customModels));
-    document.getElementById("md-name").value = "";
-    document.getElementById("md-url").value = "";
-    document.getElementById("md-key").value = "";
+    document.getElementById("am-key").value = "";
+    document.getElementById("am-name").value = "";
+    document.getElementById("am-baseurl").value = "";
+    document.getElementById("am-apikey").value = "";
+    renderModelList();
     renderDropdowns();
+    _syncCustomModelToServer(entry);
+    document.getElementById("add-model-modal").close();
 }
 
-function delModel(i) {
-    customModels.splice(i, 1);
+function delModel(key) {
+    if (!confirm("删除自定义模型「" + key + "」？")) return;
+    customModels = customModels.filter(m => m.key !== key);
     localStorage.setItem("mc_custom", JSON.stringify(customModels));
+    // 如果某个角色正在使用该模型，回退到系统默认
+    ROLES.forEach(r => {
+        if (currentRoles[r] === key) {
+            currentRoles[r] = systemConfig.default_roles[r];
+        }
+    });
+    localStorage.setItem("mc_roles", JSON.stringify(currentRoles));
+    renderModelList();
     renderDropdowns();
+    _deleteCustomModelOnServer(key);
+}
+
+// ── 注册用户 → 与后端同步 ──
+
+function _isRegistered() {
+    return !!localStorage.getItem("auth_token");
+}
+
+function _authHeaders() {
+    var t = localStorage.getItem("auth_token");
+    return t ? { "Authorization": "Bearer " + t, "Content-Type": "application/json" } : {};
+}
+
+function _syncRolesToServer() {
+    if (!_isRegistered()) return;
+    fetch("/api/user/config", {
+        method: "PUT",
+        headers: _authHeaders(),
+        body: JSON.stringify({ roles: currentRoles }),
+    }).catch(function(){});
+}
+
+function _syncCustomModelToServer(entry) {
+    if (!_isRegistered()) return;
+    fetch("/api/user/custom-models", {
+        method: "POST",
+        headers: _authHeaders(),
+        body: JSON.stringify(entry),
+    }).catch(function(){});
+}
+
+function _deleteCustomModelOnServer(key) {
+    if (!_isRegistered()) return;
+    fetch("/api/user/custom-models/" + encodeURIComponent(key), {
+        method: "DELETE",
+        headers: _authHeaders(),
+    }).catch(function(){});
+}
+
+async function loadUserConfig() {
+    if (!_isRegistered()) return;
+    try {
+        const resp = await fetch("/api/user/config", { headers: _authHeaders() });
+        const data = await resp.json();
+        if (data.roles) {
+            currentRoles = data.roles;
+            localStorage.setItem("mc_roles", JSON.stringify(currentRoles));
+        }
+        if (data.models) {
+            customModels = data.models;
+            localStorage.setItem("mc_custom", JSON.stringify(customModels));
+        }
+        renderModelList();
+        renderDropdowns();
+    } catch(e) {}
 }
 
 function newChat() {
@@ -519,7 +653,7 @@ function refreshAuthUI() {
             '<span class="auth-tab" onclick="switchAuthTab(\'register\')" id="tab-register">注册</span>' +
         '</div>' +
         '<div id="auth-form" class="flex flex-col gap-3">' +
-            '<input id="auth-email" type="email" class="config-input" placeholder="邮箱">' +
+            '<input id="auth-name" type="text" class="config-input" placeholder="用户名">' +
             '<input id="auth-password" type="password" class="config-input" placeholder="密码">' +
             '<div id="auth-confirm-wrap" class="hidden"><input id="auth-confirm" type="password" class="config-input" placeholder="确认密码"></div>' +
             '<button onclick="submitAuth()" class="config-btn" id="auth-btn">登录</button>' +
@@ -539,10 +673,16 @@ function switchAuthTab(mode) {
     if (wrap) wrap.classList.toggle("hidden", mode === "login");
     var btn = document.getElementById("auth-btn");
     if (btn) btn.textContent = mode === "login" ? "登录" : "注册";
+    document.getElementById("auth-name").value = "";
+    document.getElementById("auth-password").value = "";
+    var c = document.getElementById("auth-confirm");
+    if (c) c.value = "";
+    var m = document.getElementById("auth-msg");
+    if (m) m.textContent = "";
 }
 
 async function submitAuth() {
-    var name = document.getElementById("auth-email").value.trim();
+    var name = document.getElementById("auth-name").value.trim();
     var password = document.getElementById("auth-password").value.trim();
     var msg = document.getElementById("auth-msg");
     if (!name || !password) { msg.textContent = "请填写完整"; return; }
@@ -554,7 +694,7 @@ async function submitAuth() {
             const resp = await fetch("/api/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name, email: name, password: password }),
+                body: JSON.stringify({ name: name, password: password }),
             });
             const data = await resp.json();
             if (data.error) { msg.textContent = data.error; return; }
@@ -563,6 +703,8 @@ async function submitAuth() {
             localStorage.setItem("mc_uname", data.name);
             // 迁移游客会话
             await migrateGuestSessions();
+            // 加载用户配置
+            await loadUserConfig();
             // 更新 UI
             updateAuthUI(name);
             document.getElementById("login-modal").close();
@@ -582,6 +724,7 @@ async function submitAuth() {
             localStorage.setItem("auth_token", data.token);
             localStorage.setItem("mc_uname", data.name);
             await migrateGuestSessions();
+            await loadUserConfig();
             updateAuthUI(name);
             document.getElementById("login-modal").close();
             msg.textContent = "";
@@ -642,6 +785,13 @@ async function logout() {
     if (typeof _currentSessionId !== 'undefined') _currentSessionId = null;
     const el = document.getElementById("session-list");
     if (el) el.innerHTML = '<div class="text-xs opacity-40 text-center py-2">暂无对话记录</div>';
+    // 清空用户配置缓存，回退系统默认
+    localStorage.removeItem("mc_roles");
+    localStorage.removeItem("mc_custom");
+    customModels = [];
+    ROLES.forEach(r => { currentRoles[r] = systemConfig.default_roles[r]; });
+    renderModelList();
+    renderDropdowns();
 }
 
 // 恢复登录状态
@@ -651,6 +801,7 @@ async function logout() {
     if (token && uname) {
         document.getElementById("user-display").textContent = uname;
         document.getElementById("user-avatar").textContent = uname.charAt(0).toUpperCase();
+        loadUserConfig();
     }
 })();
 </script>
