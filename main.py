@@ -14,7 +14,7 @@ if _PROJECT_DIR not in sys.path:
 from dotenv import load_dotenv
 load_dotenv(os.path.join(_PROJECT_DIR, ".env"), override=True)
 
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["HF_ENDPOINT"] = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ["NO_PROXY"] = "localhost,127.0.0.1"
 os.environ["no_proxy"] = "localhost,127.0.0.1"
 os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -55,7 +55,7 @@ async def lifespan(a: FastAPI):
     a.state.db = Database(os.path.join(_PROJECT_DIR, "data.db"))
     yield
 
-app = FastAPI(title="多智能体协作系统", version="3.1", lifespan=lifespan)
+app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
 
 # ──── 静态文件 & 模板 ────
 app.mount("/static", StaticFiles(directory=os.path.join(_PROJECT_DIR, "static")), name="static")
