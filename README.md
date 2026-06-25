@@ -174,19 +174,26 @@ python main.py
 
 ```
 Multi-Agent-System/
-├── main.py                  # FastAPI 入口，22 个 API 端点
-├── db.py                    # SQLite 数据库（用户 + 会话 + Token 持久化）
-├── router.py                # Router 意图分类器
+├── main.py                  # FastAPI 入口
 ├── config.py                # LLM 模型配置
+├── router.py                # Router 意图分类器
 ├── workflow.py              # LangGraph 工作流编排
-├── executor.py              # subprocess 代码执行沙箱
+├── executor.py              # Docker/subprocess 代码执行沙箱
 ├── agents.py                # 7 个 Agent System Prompt 定义
 ├── tools.py                 # 7 个 LangChain 工具
 ├── requirements.txt         # Python 依赖清单
 ├── .env.example             # 环境变量模板
+├── LICENSE                  # MIT 开源许可
+│
+├── user/                    # 用户管理模块
+│   ├── __init__.py          # 包标识
+│   ├── auth.py              # bcrypt 密码哈希 + JWT 创建/解码
+│   ├── db.py                # SQLite CRUD（users/sessions/user_configs）
+│   ├── helpers.py           # require_auth 依赖 + _get_db
+│   └── routes.py            # 认证/会话/用户配置 API 路由
 │
 ├── app/
-│   ├── auth.py              # 认证 API（注册/登录/退出/me）+ Token 依赖
+│   ├── __init__.py          # 包标识
 │   ├── chat.py              # 聊天管道（Router + 关键词覆写 + 90s 超时）
 │   ├── knowledge.py         # 知识库管理 API（Token 鉴权）
 │   └── ocr.py               # Tesseract OCR 模块
@@ -210,9 +217,12 @@ Multi-Agent-System/
 │   └── test_knowledge_routes.py  # 9 个自动化测试用例
 │
 ├── docs/
+│   ├── api.md               # API 文档
+│   ├── user.md              # 用户管理体系设计
+│   ├── 答辩报告.md           # 项目答辩报告
+│   ├── 项目要求.txt          # 实训项目要求
 │   └── superpowers/         # 设计文档与实现计划
 │
-├── 答辩报告.md               # 项目答辩报告
 └── README.md                # 本文件
 ```
 
