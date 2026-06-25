@@ -29,6 +29,7 @@ _ROUTER_SYSTEM = (
     "写一篇关于XX的分析，不要加你们的总结报告 → 写作|重|False\n"
     "实现一个LRU缓存 → 编程|重|True\n"
     "你好 → 闲聊|轻|True\n"
+    "最高规则： 如果是写作必须使用False\n"
 )
 
 _MODEL_INFO = None
@@ -99,5 +100,26 @@ def classify(user_input: str) -> tuple[str, str]:
             complexity = "轻"
         elif p == "False":
             need_report = False
+
+    # ── 关键词兜底覆写逻辑 ──
+    import re
+    _search = re.search(r"(搜索|查资料|检索|查找.*知识|基于知识库)", user_input, re.IGNORECASE)
+    if _search and complexity == "轻":
+        complexity = "重"
+        task_type = "写作"
+
+    _analysis = re.match(r"^\s*分析", user_input)
+    if _analysis and complexity == "轻":
+        complexity = "重"
+        if task_type not in ("分析", "编程"):
+            task_type = "分析"
+
+    if not _search:
+        _non_py = re.search(
+            r"(c语言|c\s*代码|java|rust|go\s*语言|golang|swift|c\+\+|c#|typescript)", user_input, re.IGNORECASE
+        )
+        if _non_py and task_type == "编程":
+            task_type = "问答"
+            complexity = "轻"
 
     return (task_type, complexity, need_report)
