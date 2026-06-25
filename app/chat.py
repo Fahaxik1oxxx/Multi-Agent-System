@@ -35,8 +35,7 @@ def _scan_generated_files(since: float | None = None) -> list[dict]:
     return files
 
 
-def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
-                      lane_mode: str = "auto") -> dict:
+def run_chat_pipeline(user_input: str, history: list[dict] | None = None, lane_mode: str = "auto") -> dict:
     """
     处理一条用户消息，返回:
       {"reply": "...", "thinking": [...], "task_type": "...", "speaking_log": [...], "generated_files": [...]}
@@ -54,21 +53,19 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
     else:
         # auto: Router 自动分类
         from router import classify
-        task_type, complexity = classify(user_input)
+
+        task_type, complexity, need_report = classify(user_input)
 
         # ── Phase 2: 关键词覆写 ──
 
         # 搜索关键词检测（最高优先级）
-        _search = re.search(
-            r'(搜索|查资料|检索|查找.*知识|基于知识库)',
-            user_input, re.IGNORECASE
-        )
+        _search = re.search(r"(搜索|查资料|检索|查找.*知识|基于知识库)", user_input, re.IGNORECASE)
         if _search and complexity == "轻":
             complexity = "重"
             task_type = "写作"
 
         # 分析关键词强制慢车道
-        _analysis = re.match(r'^\s*分析', user_input)
+        _analysis = re.match(r"^\s*分析", user_input)
         if _analysis and complexity == "轻":
             complexity = "重"
             if task_type not in ("分析", "编程"):
@@ -77,8 +74,7 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
         # 非 Python 语言请求 → 强制快车道（仅当非搜索任务）
         if not _search:
             _non_py = re.search(
-                r'(c语言|c\s*代码|java|rust|go\s*语言|golang|swift|c\+\+|c#|typescript)',
-                user_input, re.IGNORECASE
+                r"(c语言|c\s*代码|java|rust|go\s*语言|golang|swift|c\+\+|c#|typescript)", user_input, re.IGNORECASE
             )
             if _non_py and task_type == "编程":
                 task_type = "问答"
@@ -87,11 +83,10 @@ def run_chat_pipeline(user_input: str, history: list[dict] | None = None,
     # ── Phase 3: 车道分发 ──
     if complexity == "轻":
         return _run_fast(user_input, task_type, history, _ts_before)
-    return _run_slow(user_input, task_type, history, _ts_before)
+    return _run_slow(user_input, task_type, history, _ts_before, need_report)
 
 
-def _run_fast(user_input: str, task_type: str, history: list[dict] | None,
-              since: float) -> dict:
+def _run_fast(user_input: str, task_type: str, history: list[dict] | None, since: float) -> dict:
     """快车道：Bot 直接回复"""
     from workflow import build_workflow
 
@@ -120,8 +115,7 @@ def _run_fast(user_input: str, task_type: str, history: list[dict] | None,
     }
 
 
-def _run_slow(user_input: str, task_type: str, history: list[dict] | None,
-              since: float) -> dict:
+def _run_slow(user_input: str, task_type: str, history: list[dict] | None, since: float, need_report: bool) -> dict:
     """慢车道：多 Agent 协作流水线（带超时）"""
     from workflow import build_workflow
 
@@ -138,6 +132,7 @@ def _run_slow(user_input: str, task_type: str, history: list[dict] | None,
         "task_type": task_type,
         "complexity": "重",
         "fix_count": 0,
+        "need_report": need_report,
     }
 
     result_container = {}
@@ -193,10 +188,7 @@ def generate_report_from_thinking(thinking: list[dict]) -> str:
     from agents import create_llm, SYSTEM_PROMPTS
 
     llm = create_llm("Summarizer")
-    context = "\n\n".join(
-        f"{m.get('name', '')}: {m.get('content', '')[:2000]}"
-        for m in thinking if m.get("content")
-    )
+    context = "\n\n".join(f"{m.get('name', '')}: {m.get('content', '')[:2000]}" for m in thinking if m.get("content"))
     prompt = (
         f"{SYSTEM_PROMPTS['Summarizer']}\n\n"
         f"以下是一个多智能体协作过程的内部记录。请你据此生成一份结构化的执行报告。\n\n"
@@ -210,6 +202,7 @@ def generate_report_from_thinking(thinking: list[dict]) -> str:
 
 
 # ===== helpers =====
+
 
 def _parse_thinking(raw_messages: list) -> list[dict]:
     """将 agent_messages 解析为前端可用的 thinking 列表"""
@@ -241,8 +234,7 @@ def _build_context_summary(history: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def _compose_reply(result: dict, thinking: list[dict],
-                   user_input: str, task_type: str) -> str:
+def _compose_reply(result: dict, thinking: list[dict], user_input: str, task_type: str) -> str:
     """根据任务类型组合回复正文"""
     # 优先使用 Summarizer 输出
     final = result.get("final_output", "")
