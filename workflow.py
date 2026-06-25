@@ -14,9 +14,9 @@ import re
 # ===== 状态定义 =====
 class WorkflowState(TypedDict):
     user_input: str
-    lane_mode: str          # "auto" | "fast" | "slow"
-    task_type: str          # "编程" | "写作" | "分析" | "问答" | "闲聊"
-    complexity: str         # "轻" | "重"
+    lane_mode: str  # "auto" | "fast" | "slow"
+    task_type: str  # "编程" | "写作" | "分析" | "问答" | "闲聊"
+    complexity: str  # "轻" | "重"
     plan: str
     knowledge: str
     code_or_draft: str
@@ -26,6 +26,7 @@ class WorkflowState(TypedDict):
     agent_messages: Annotated[list, operator.add]
     speaking_log: Annotated[list, operator.add]
     final_output: str
+    need_report: bool
 
 
 _MAX_FIX_CYCLES = 2
@@ -83,14 +84,14 @@ def _route_after_executor(state: WorkflowState) -> str:
 
 # ===== 节点函数 =====
 
+
 def bot_node(state: WorkflowState) -> dict:
     from agents import create_llm, SYSTEM_PROMPTS
+
     _log_speak("用户", "Bot")
 
     llm = create_llm("Bot", temperature=0.5)
-    response = llm.invoke(
-        f"{SYSTEM_PROMPTS['Bot']}\n\n用户输入: {state['user_input']}"
-    )
+    response = llm.invoke(f"{SYSTEM_PROMPTS['Bot']}\n\n用户输入: {state['user_input']}")
     reply = response.content if hasattr(response, "content") else str(response)
 
     return {
@@ -102,15 +103,14 @@ def bot_node(state: WorkflowState) -> dict:
 
 def planner_node(state: WorkflowState) -> dict:
     from agents import create_llm, SYSTEM_PROMPTS
+
     _log_speak("用户", "Planner")
 
     task_type = state.get("task_type", "编程")
 
     # 根据任务类型定制 Planner prompt
     if task_type == "分析":
-        extra = (
-            "\n注意：这是数据分析任务。规划步骤应包含：数据加载 → 清洗 → 统计/分组 → 可视化。"
-        )
+        extra = "\n注意：这是数据分析任务。规划步骤应包含：数据加载 → 清洗 → 统计/分组 → 可视化。"
     elif task_type == "编程":
         extra = (
             "\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，"
@@ -120,9 +120,7 @@ def planner_node(state: WorkflowState) -> dict:
         extra = ""
 
     llm = create_llm("Planner")
-    response = llm.invoke(
-        f"{SYSTEM_PROMPTS['Planner']}\n{extra}\n\n用户需求: {state['user_input']}"
-    )
+    response = llm.invoke(f"{SYSTEM_PROMPTS['Planner']}\n{extra}\n\n用户需求: {state['user_input']}")
     plan = response.content if hasattr(response, "content") else str(response)
 
     # 从 Planner 输出提取 task_type（保底用上游传入的值）
@@ -137,7 +135,10 @@ def planner_node(state: WorkflowState) -> dict:
         "task_type": resolved_type,
         "fix_count": state.get("fix_count", 0),
         "agent_messages": [{"role": "assistant", "content": plan, "name": "Planner"}],
-        "speaking_log": [_log_speak("用户", "Planner"), _log_speak("Planner", "Retriever")],
+        "speaking_log": [
+            _log_speak("用户", "Planner"),
+            _log_speak("Planner", "Retriever"),
+        ],
     }
 
 
@@ -163,7 +164,10 @@ def retriever_node(state: WorkflowState) -> dict:
     return {
         "knowledge": knowledge,
         "agent_messages": [{"role": "assistant", "content": knowledge, "name": "Retriever"}],
-        "speaking_log": [_log_speak("Planner", "Retriever"), _log_speak("Retriever", next_agent)],
+        "speaking_log": [
+            _log_speak("Planner", "Retriever"),
+            _log_speak("Retriever", next_agent),
+        ],
     }
 
 
@@ -207,7 +211,10 @@ def coder_node(state: WorkflowState) -> dict:
         "fix_count": state.get("fix_count", 0),
         "task_type": task_type,
         "agent_messages": [{"role": "assistant", "content": code_or_draft, "name": "Coder"}],
-        "speaking_log": [_log_speak("Retriever", "Coder"), _log_speak("Coder", "Executor")],
+        "speaking_log": [
+            _log_speak("Retriever", "Coder"),
+            _log_speak("Coder", "Executor"),
+        ],
     }
 
 
@@ -232,7 +239,10 @@ def writer_node(state: WorkflowState) -> dict:
         "fix_count": state.get("fix_count", 0),
         "task_type": state.get("task_type", "写作"),
         "agent_messages": [{"role": "assistant", "content": code_or_draft, "name": "Writer"}],
-        "speaking_log": [_log_speak("Retriever", "Writer"), _log_speak("Writer", "Tester")],
+        "speaking_log": [
+            _log_speak("Retriever", "Writer"),
+            _log_speak("Writer", "Tester"),
+        ],
     }
 
 
@@ -259,7 +269,7 @@ def executor_node(state: WorkflowState) -> dict:
             continue
         result = executor.execute(code)
         result_text = (
-            f"--- 代码块 {i+1} ---\n"
+            f"--- 代码块 {i + 1} ---\n"
             f"exitcode: {result['exitcode']}\n"
             f"stdout:\n{result['stdout']}\n"
             f"stderr:\n{result['stderr']}"
@@ -280,7 +290,10 @@ def executor_node(state: WorkflowState) -> dict:
     return {
         "execution_result": combined,
         "agent_messages": [{"role": "assistant", "content": combined, "name": "Executor"}],
-        "speaking_log": [_log_speak("Coder", "Executor"), _log_speak("Executor", next_step)],
+        "speaking_log": [
+            _log_speak("Coder", "Executor"),
+            _log_speak("Executor", next_step),
+        ],
     }
 
 
@@ -292,11 +305,7 @@ def tester_node(state: WorkflowState) -> dict:
     code_or_draft = state.get("code_or_draft", "")
     task_type = state.get("task_type", "编程")
 
-    prompt = (
-        f"用户原始需求：{state['user_input']}\n\n"
-        f"任务类型：{task_type}\n\n"
-        f"产出内容：\n{code_or_draft[:3000]}\n\n"
-    )
+    prompt = f"用户原始需求：{state['user_input']}\n\n任务类型：{task_type}\n\n产出内容：\n{code_or_draft[:3000]}\n\n"
     if exec_info and "无代码" not in exec_info:
         prompt += f"执行结果：\n{exec_info}\n\n"
     prompt += "请评审上述产出是否满足用户原始需求。"
@@ -317,7 +326,10 @@ def tester_node(state: WorkflowState) -> dict:
         "fix_count": new_fix_count,
         "task_type": task_type,
         "agent_messages": [{"role": "assistant", "content": test_result, "name": "Tester"}],
-        "speaking_log": [_log_speak("Executor", "Tester"), _log_speak("Tester", next_agent)],
+        "speaking_log": [
+            _log_speak("Executor", "Tester"),
+            _log_speak("Tester", next_agent),
+        ],
     }
 
 
@@ -339,16 +351,22 @@ def summarizer_node(state: WorkflowState) -> dict:
     prompt = (
         f"{SYSTEM_PROMPTS['Summarizer']}\n\n"
         "以下是一个多智能体协作过程的记录。请你据此生成一份结构化的执行报告，"
-        "使用 Markdown 格式，包括：任务概述、执行步骤、关键产出、结论。\n\n"
-        + "\n\n".join(context_parts)
+        "使用 Markdown 格式，包括：任务概述、执行步骤、关键产出、结论。\n\n" + "\n\n".join(context_parts)
     )
     response = llm.invoke(prompt)
-    final_output = response.content if hasattr(response, "content") else str(response)
+    report = response.content if hasattr(response, "content") else str(response)
+    if state.get("need_report", True):
+        final_output = report
+    else:
+        final_output = state.get("code_or_draft", "")
 
     return {
         "final_output": final_output,
-        "agent_messages": [{"role": "assistant", "content": final_output, "name": "Summarizer"}],
-        "speaking_log": [_log_speak("Tester", "Summarizer"), _log_speak("Summarizer", "结束")],
+        "agent_messages": [{"role": "assistant", "content": report, "name": "Summarizer"}],
+        "speaking_log": [
+            _log_speak("Tester", "Summarizer"),
+            _log_speak("Summarizer", "结束"),
+        ],
     }
 
 
@@ -372,21 +390,29 @@ def build_workflow() -> StateGraph:
 
     # 慢车道
     wf.add_edge("planner", "retriever")
-    wf.add_conditional_edges("retriever", _route_task, {
-        "coder": "coder",
-        "writer": "writer",
-    })
+    wf.add_conditional_edges(
+        "retriever",
+        _route_task,
+        {
+            "coder": "coder",
+            "writer": "writer",
+        },
+    )
     wf.add_edge("coder", "executor")
-    wf.add_conditional_edges("executor", _route_after_executor, {
-        "tester": "tester",
-        "summarizer": "summarizer",
-    })
+    wf.add_conditional_edges(
+        "executor",
+        _route_after_executor,
+        {
+            "tester": "tester",
+            "summarizer": "summarizer",
+        },
+    )
     wf.add_edge("writer", "tester")
-    wf.add_conditional_edges("tester", _route_test, {
-        "coder": "coder",
-        "writer": "writer",
-        "summarizer": "summarizer",
-    })
+    wf.add_conditional_edges(
+        "tester",
+        _route_test,
+        {"coder": "coder", "writer": "writer", "summarizer": "summarizer"},
+    )
     wf.add_edge("summarizer", END)
 
     return wf.compile()

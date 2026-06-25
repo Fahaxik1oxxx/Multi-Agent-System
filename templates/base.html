@@ -13,6 +13,19 @@
             "{{ name }}": "{{ get_model_display(name) }}"{% if not loop.last %},{% endif %}
             {% endfor %}
         };
+        const systemConfig = {
+            default_roles: {
+                {% for name, model_id in role_model.items() %}
+                "{{ name }}": "{{ model_id }}"{% if not loop.last %},{% endif %}
+                {% endfor %}
+            },
+            model_pool: {
+                {% for key, cfg in model_pool.items() %}
+                "{{ key }}": "{{ cfg.model }}"{% if not loop.last %},{% endif %}
+                {% endfor %}
+            },
+            roles: {{ role_model.keys() | list | safe }},
+        };
     </script>
 </head>
 <body>

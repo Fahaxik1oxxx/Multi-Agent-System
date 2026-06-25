@@ -21,6 +21,9 @@ _test_*.py
 # === 工具内部文件 ===
 .superpowers/
 
+# === 调试日志 ===
+db_debug.log
+
 # === 输出产物（可重新运行生成） ===
 **/reports/
 **/chroma_db/
