@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+:root {
+  --brand-primary: #4f8cff;
+  --bg-chat: #f8f9fc;
+  --text-primary: #1a1a2e;
+  --text-secondary: #6b7280;
+}
