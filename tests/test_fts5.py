@@ -294,6 +294,7 @@ class TestSearch:
             # 不应抛出异常
             results = db.search_messages(user_id, '"双引号"')
             assert isinstance(results, list)
+            assert len(results) >= 1
 
     def test_empty_query_returns_empty(self):
         """空查询 / 纯空白返回空列表"""

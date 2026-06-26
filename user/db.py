@@ -138,31 +138,44 @@ class Database:
         limit: int = 20, offset: int = 0,
     ) -> list[dict]:
         """全文检索用户会话消息。
-        返回 [{session_id, msg_index, role, snippet}, ...]，按 FTS5 rank 排序。
-        空查询 / 纯空白返回 []。"""
+
+        返回 [{session_id, msg_index, role, snippet}, ...]。
+        空查询 / 纯空白返回 []。
+
+        unicode61 tokenizer 将连续非 ASCII 字符（CJK、假名、韩文等）
+        视为单一 token，导致子串搜索失败。对此类查询使用
+        ``content LIKE '%q%'`` 回退。
+
+        注意：LIKE 回退路径下 snippet() 不产生 <mark> 高亮，
+        因为 FTS5 没有可用的匹配词条信息。
+        """
         q = (query or "").strip()
         if not q:
             return []
-        # FTS5 转义：双引号是 FTS5 短语语法，需转义
-        q = q.replace('"', '""')
-        # unicode61 将连续 CJK 视为单一 token，导致子串搜索失败。
-        # 对含 CJK 的查询使用 LIKE 回退，否则使用 FTS5 MATCH 获得 rank 排序和高亮。
-        has_cjk = any(
-            '一' <= ch <= '鿿' or '㐀' <= ch <= '䶿'
-            for ch in q
-        )
-        if has_cjk:
+        # unicode61 将连续非 ASCII 字符（CJK、假名、韩文等）视为
+        # 单一 token，导致子串匹配失败。对含非 ASCII 字符的查询
+        # 使用 LIKE 回退，否则使用 FTS5 MATCH 获得 rank 排序和高亮。
+        has_non_ascii = any(ord(ch) > 127 for ch in q)
+        if has_non_ascii:
+            # LIKE 回退路径：转义 LIKE 元字符（\ % _）
+            escaped = (
+                q.replace('\\', '\\\\')
+                 .replace('%', '\\%')
+                 .replace('_', '\\_')
+            )
             sql = (
                 "SELECT session_id, msg_index, role, "
                 "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
                 "AS snippet "
                 "FROM messages_fts "
-                "WHERE user_id = ? AND content LIKE ? "
+                "WHERE user_id = ? AND content LIKE ? ESCAPE '\\' "
                 "ORDER BY msg_index "
                 "LIMIT ? OFFSET ?"
             )
-            params = (user_id, f'%{q}%', limit, offset)
+            params = (user_id, f'%{escaped}%', limit, offset)
         else:
+            # FTS5 MATCH 路径：转义双引号（FTS5 短语语法）
+            escaped = q.replace('"', '""')
             sql = (
                 "SELECT session_id, msg_index, role, "
                 "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
@@ -172,7 +185,7 @@ class Database:
                 "ORDER BY rank "
                 "LIMIT ? OFFSET ?"
             )
-            params = (user_id, q, limit, offset)
+            params = (user_id, escaped, limit, offset)
         with self._conn() as conn:
             rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
