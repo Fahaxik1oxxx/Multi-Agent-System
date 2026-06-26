@@ -10,7 +10,7 @@ export const userApi = {
     apiClient.put('/user/profile', data),
 
   getApiKeyStatus: () =>
-    apiClient.get<{ has_custom_key: boolean; using_system_default: boolean }>(
+    apiClient.get<{ has_custom_key: boolean; key_prefix: string }>(
       '/user/api-key'
     ),
 
