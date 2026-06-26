@@ -60,7 +60,9 @@ async def lifespan(app: FastAPI):
         with db._conn() as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     except Exception:
-        pass
+        logging.getLogger(__name__).warning(
+            "WAL checkpoint 执行失败，下次启动时 SQLite 将自动恢复", exc_info=True
+        )
 
 app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
 

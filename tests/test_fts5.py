@@ -343,3 +343,15 @@ class TestSearch:
         with TestClient(app) as client:
             resp = client.get("/api/sessions/search?q=test")
             assert resp.status_code == 401
+
+
+class TestWalCheckpoint:
+    def test_wal_checkpoint_executes_without_error(self):
+        """验证 WAL checkpoint SQL 可以正常执行，不抛出异常"""
+        with TestClient(app) as client:
+            _register(client, "wal_cp")
+            db = app.state.db
+            # checkpoint 应在不抛出异常的情况下执行
+            with db._conn() as conn:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            # 测试通过即表示 checkpoint 执行无异常
