@@ -80,6 +80,11 @@ app.include_router(auth_router, prefix="/api/auth", tags=["认证"])
 app.include_router(session_router, prefix="/api/sessions", tags=["会话"])
 app.include_router(user_router, prefix="/api/user", tags=["用户配置"])
 
+from workspace.routes import workspace_router, project_router, admin_router
+app.include_router(workspace_router, prefix="/api/workspaces", tags=["工作空间"])
+app.include_router(project_router, prefix="/api", tags=["项目"])
+app.include_router(admin_router, prefix="/api/admin", tags=["管理"])
+
 
 @app.get("/", response_class=HTMLResponse, tags=["页面"])
 async def index(request: Request):
