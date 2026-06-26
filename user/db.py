@@ -13,10 +13,11 @@ from contextlib import contextmanager
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 2
+    TARGET_SCHEMA_VERSION = 3
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
+    # 3 → 新增: workspaces, workspace_members, projects + is_admin 列
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -114,6 +115,37 @@ class Database:
                             "VALUES (?, ?, ?, ?, ?)",
                             (r["id"], r["user_id"], i, role, content),
                         )
+        elif version == 3:
+            conn.executescript("""
+                ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;
+
+                CREATE TABLE IF NOT EXISTS workspaces (
+                    id          TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    owner_id    TEXT NOT NULL REFERENCES users(id),
+                    is_public   INTEGER DEFAULT 0,
+                    created_at  TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+
+                CREATE TABLE IF NOT EXISTS workspace_members (
+                    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    user_id      TEXT NOT NULL REFERENCES users(id),
+                    role         TEXT NOT NULL DEFAULT 'member',
+                    joined_at    TEXT DEFAULT (datetime('now', 'localtime')),
+                    PRIMARY KEY (workspace_id, user_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS projects (
+                    id           TEXT PRIMARY KEY,
+                    workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                    name         TEXT NOT NULL,
+                    description  TEXT DEFAULT '',
+                    agent_config TEXT DEFAULT '{}',
+                    created_by   TEXT NOT NULL REFERENCES users(id),
+                    created_at   TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+            """)
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
@@ -322,6 +354,187 @@ class Database:
                 )
                 return True
             return False
+
+    # ── 工作空间 ──
+
+    def create_workspace(self, name: str, description: str, owner_id: str) -> str:
+        wid = str(uuid.uuid4())[:8]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO workspaces (id, name, description, owner_id) "
+                "VALUES (?, ?, ?, ?)",
+                (wid, name, description, owner_id),
+            )
+            conn.execute(
+                "INSERT INTO workspace_members (workspace_id, user_id, role) "
+                "VALUES (?, ?, 'owner')",
+                (wid, owner_id),
+            )
+        return wid
+
+    def get_workspace(self, workspace_id: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT id, name, description, owner_id, is_public, created_at "
+                "FROM workspaces WHERE id = ?",
+                (workspace_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_workspaces(self, user_id: str) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT w.id, w.name, w.description, w.owner_id, w.is_public, "
+                "w.created_at, wm.role "
+                "FROM workspaces w "
+                "INNER JOIN workspace_members wm ON w.id = wm.workspace_id "
+                "WHERE wm.user_id = ? "
+                "ORDER BY w.created_at DESC",
+                (user_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_workspace(self, workspace_id: str, **fields) -> bool:
+        allowed = {"name", "description", "is_public"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return False
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [workspace_id]
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE workspaces SET {set_clause} WHERE id = ?", values
+            )
+            return cur.rowcount > 0
+
+    def delete_workspace(self, workspace_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM workspaces WHERE id = ?", (workspace_id,)
+            )
+            return cur.rowcount > 0
+
+    # ── 成员管理 ──
+
+    def add_member(self, workspace_id: str, user_id: str, role: str = "member") -> bool:
+        with self._conn() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO workspace_members (workspace_id, user_id, role) "
+                    "VALUES (?, ?, ?)",
+                    (workspace_id, user_id, role),
+                )
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def remove_member(self, workspace_id: str, user_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM workspace_members "
+                "WHERE workspace_id = ? AND user_id = ? AND role != 'owner'",
+                (workspace_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def list_members(self, workspace_id: str) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT wm.user_id, u.name, wm.role, wm.joined_at "
+                "FROM workspace_members wm "
+                "JOIN users u ON wm.user_id = u.id "
+                "WHERE wm.workspace_id = ? "
+                "ORDER BY wm.joined_at",
+                (workspace_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_member_role(self, workspace_id: str, user_id: str) -> str | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT role FROM workspace_members "
+                "WHERE workspace_id = ? AND user_id = ?",
+                (workspace_id, user_id),
+            ).fetchone()
+            return row["role"] if row else None
+
+    # ── 项目 ──
+
+    def create_project(self, workspace_id: str, name: str,
+                       description: str, created_by: str) -> str:
+        pid = str(uuid.uuid4())[:8]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO projects (id, workspace_id, name, description, created_by) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (pid, workspace_id, name, description, created_by),
+            )
+        return pid
+
+    def get_project(self, project_id: str) -> dict | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT id, workspace_id, name, description, agent_config, "
+                "created_by, created_at "
+                "FROM projects WHERE id = ?",
+                (project_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_projects(self, workspace_id: str) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, name, description, created_by, created_at "
+                "FROM projects WHERE workspace_id = ? "
+                "ORDER BY created_at DESC",
+                (workspace_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_project(self, project_id: str, **fields) -> bool:
+        allowed = {"name", "description", "agent_config"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return False
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [project_id]
+        with self._conn() as conn:
+            cur = conn.execute(
+                f"UPDATE projects SET {set_clause} WHERE id = ?", values
+            )
+            return cur.rowcount > 0
+
+    def delete_project(self, project_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM projects WHERE id = ?", (project_id,)
+            )
+            return cur.rowcount > 0
+
+    # ── 管理员 ──
+
+    def set_user_admin(self, user_id: str, is_admin: bool) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET is_admin = ? WHERE id = ?",
+                (1 if is_admin else 0, user_id),
+            )
+            return cur.rowcount > 0
+
+    def is_admin(self, user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT is_admin FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            return bool(row["is_admin"]) if row else False
+
+    def list_all_users(self) -> list[dict]:
+        """管理员接口：列出所有用户"""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT id, name, is_admin, created_at FROM users ORDER BY created_at"
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     # ── 用户配置 ──
 
