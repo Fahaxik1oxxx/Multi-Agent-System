@@ -92,6 +92,8 @@ class Database:
                     tokenize='unicode61'
                 );
             """)
+            # 清理可能存在的残留数据（幂等保证）
+            conn.execute("DELETE FROM messages_fts")
             # 回填已有会话
             import json as _json
             rows = conn.execute(
@@ -187,7 +189,26 @@ class Database:
             )
             params = (user_id, escaped, limit, offset)
         with self._conn() as conn:
-            rows = conn.execute(sql, params).fetchall()
+            try:
+                rows = conn.execute(sql, params).fetchall()
+            except sqlite3.OperationalError:
+                # FTS5 MATCH 语法错误 → 回退 LIKE（无高亮、无 rank 排序）
+                escaped = (
+                    q.replace('\\', '\\\\')
+                     .replace('%', '\\%')
+                     .replace('_', '\\_')
+                )
+                sql = (
+                    "SELECT session_id, msg_index, role, "
+                    "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
+                    "AS snippet "
+                    "FROM messages_fts "
+                    "WHERE user_id = ? AND content LIKE ? ESCAPE '\\' "
+                    "ORDER BY msg_index "
+                    "LIMIT ? OFFSET ?"
+                )
+                params = (user_id, f'%{escaped}%', limit, offset)
+                rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
     @contextmanager
