@@ -22,10 +22,11 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_jwt(user_id: str, name: str) -> str:
+def create_jwt(user_id: str, name: str, is_admin: bool = False) -> str:
     payload = {
         "sub": user_id,
         "name": name,
+        "is_admin": is_admin,
         "iat": int(time.time()),
         "exp": int(time.time()) + _JWT_TTL,
     }

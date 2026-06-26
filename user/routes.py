@@ -32,7 +32,7 @@ async def register(request: Request):
 
     hashed = hash_password(password)
     uid = db.insert_user(name, hashed)
-    token = create_jwt(uid, name)
+    token = create_jwt(uid, name, is_admin=False)
     return JSONResponse({"token": token, "user_id": uid, "name": name})
 
 
@@ -50,7 +50,7 @@ async def login(request: Request):
     if not user or not verify_password(password, user["password"]):
         return JSONResponse({"error": "用户名或密码错误"}, status_code=401)
 
-    token = create_jwt(user["id"], user["name"])
+    token = create_jwt(user["id"], user["name"], is_admin=bool(user.get("is_admin", 0)))
     return JSONResponse({"token": token, "user_id": user["id"], "name": user["name"]})
 
 

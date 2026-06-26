@@ -273,7 +273,7 @@ class Database:
         """按名称查找用户。返回 {"id", "name", "password"} 或 None。"""
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT id, name, password FROM users WHERE name = ?", (name,)
+                "SELECT id, name, password, is_admin FROM users WHERE name = ?", (name,)
             ).fetchone()
             if row:
                 return dict(row)
