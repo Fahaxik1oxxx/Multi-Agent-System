@@ -18,3 +18,4 @@ Pillow>=10
 pytesseract>=0.3.10
 bcrypt>=4.0
 pyjwt>=2.0
+httpx>=0.28

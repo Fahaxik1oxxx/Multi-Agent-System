@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -167,6 +167,35 @@ async def generate_report(request: Request):
         report_path = ""
 
     return JSONResponse({"content": report, "path": report_path})
+
+
+# ──── 开发模式：反向代理到 Vite dev server ────
+_DEV_MODE = os.getenv("DEV_MODE", "0") == "1"
+
+if _DEV_MODE:
+    import httpx
+
+    @app.api_route("/app/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    async def proxy_to_vite(path: str, request: Request):
+        """开发模式：将 /app/* 代理到 Vite dev server (port 5173)"""
+        client = httpx.AsyncClient(base_url="http://localhost:5173")
+        url = f"/{path}"
+        headers = dict(request.headers)
+        headers.pop("host", None)
+        try:
+            r = await client.request(
+                method=request.method,
+                url=url,
+                headers=headers,
+                content=await request.body(),
+            )
+            return StreamingResponse(
+                r.iter_bytes(),
+                status_code=r.status_code,
+                headers=dict(r.headers),
+            )
+        finally:
+            await client.aclose()
 
 
 # ──── 启动 ────
