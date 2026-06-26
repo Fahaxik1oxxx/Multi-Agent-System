@@ -38,9 +38,9 @@ _MODEL_INFO = None
 def _get_model_info():
     global _MODEL_INFO
     if _MODEL_INFO is None:
-        from config import get_config
+        from config import get_model_config
 
-        cfg = get_config("Planner")["config_list"][0]
+        cfg = get_model_config("Planner")
         _MODEL_INFO = {
             "model": cfg["model"],
             "api_key": cfg.get("api_key", "ollama"),

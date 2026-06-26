@@ -39,13 +39,13 @@ from user.db import Database
 try:
     get_model_display = _cfg.get_model_display
     ROLE_MODEL = _cfg.ROLE_MODEL
+    ROLES = _cfg.ROLES
 except AttributeError:
-    ROLE_MODEL = {k: "?" for k in [
-        "Planner", "Retriever", "Coder", "Writer",
-        "Tester", "Summarizer", "Bot",
-    ]}
+    ROLES = ("Planner", "Retriever", "Coder", "Writer",
+             "Tester", "Summarizer", "Bot")
+    ROLE_MODEL = {k: "?" for k in ROLES}
 
-    def get_model_display(role):
+    def get_model_display(role: str) -> str:
         return "?"
 
 # ──── FastAPI 应用 ────
