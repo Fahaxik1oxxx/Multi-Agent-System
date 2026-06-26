@@ -92,12 +92,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 - **`delete_session()`** — 删除会话后同步清理 FTS5 行。
 - **数据迁移 (v2)** — 对已有 `sessions` 做一次性回填。
 
-`_sync_fts()` 采用"先删后插"模式：
+`_sync_fts(conn, session_id, user_id, messages)` 接收外层传入的连接对象，在 `upsert_session` / `delete_session` 的 `with self._conn()` 块内调用，确保与 `sessions` 表操作共享同一事务。采用"先删后插"模式：
 
 1. `DELETE FROM messages_fts WHERE session_id = ?`
 2. 遍历 `messages` JSON 数组，逐条 `INSERT`
 
-所有操作在同一事务内，保证 `sessions` 和 `messages_fts` 的原子性。
+共用事务保证 `sessions` 和 `messages_fts` 的原子性——写 sessions 失败则 FTS5 也不会变更，反之亦然。
 
 ### 4.3 检索方法
 
