@@ -133,6 +133,50 @@ class Database:
                     (session_id, user_id, i, role, content),
                 )
 
+    def search_messages(
+        self, user_id: str, query: str,
+        limit: int = 20, offset: int = 0,
+    ) -> list[dict]:
+        """全文检索用户会话消息。
+        返回 [{session_id, msg_index, role, snippet}, ...]，按 FTS5 rank 排序。
+        空查询 / 纯空白返回 []。"""
+        q = (query or "").strip()
+        if not q:
+            return []
+        # FTS5 转义：双引号是 FTS5 短语语法，需转义
+        q = q.replace('"', '""')
+        # unicode61 将连续 CJK 视为单一 token，导致子串搜索失败。
+        # 对含 CJK 的查询使用 LIKE 回退，否则使用 FTS5 MATCH 获得 rank 排序和高亮。
+        has_cjk = any(
+            '一' <= ch <= '鿿' or '㐀' <= ch <= '䶿'
+            for ch in q
+        )
+        if has_cjk:
+            sql = (
+                "SELECT session_id, msg_index, role, "
+                "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
+                "AS snippet "
+                "FROM messages_fts "
+                "WHERE user_id = ? AND content LIKE ? "
+                "ORDER BY msg_index "
+                "LIMIT ? OFFSET ?"
+            )
+            params = (user_id, f'%{q}%', limit, offset)
+        else:
+            sql = (
+                "SELECT session_id, msg_index, role, "
+                "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
+                "AS snippet "
+                "FROM messages_fts "
+                "WHERE user_id = ? AND messages_fts MATCH ? "
+                "ORDER BY rank "
+                "LIMIT ? OFFSET ?"
+            )
+            params = (user_id, q, limit, offset)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
     @contextmanager
     def _conn(self):
         conn = sqlite3.connect(self._path)

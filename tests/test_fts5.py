@@ -226,3 +226,119 @@ class TestFts5Sync:
         assert len(rows) == 2
         assert "回填测试" in rows[0]["content"]
         assert "这条应该进" in rows[1]["content"]
+
+
+class TestSearch:
+    def test_chinese_keyword_match(self):
+        """中文关键词匹配正确"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_cn")
+            db = app.state.db
+
+            sid = f"test_{uuid.uuid4().hex[:8]}"
+            msgs = [
+                {"role": "user", "content": "如何用 Python 写网络爬虫"},
+                {"role": "assistant",
+                 "content": "你可以使用 requests + BeautifulSoup 来构建爬虫"},
+                {"role": "user", "content": "请给我一个完整示例"},
+            ]
+            db.upsert_session(sid, user_id, msgs)
+
+            results = db.search_messages(user_id, "爬虫")
+            assert len(results) >= 1
+            # 应该匹配到包含"爬虫"的那条
+            snippets = [r["snippet"] for r in results]
+            assert any("爬虫" in s for s in snippets)
+
+    def test_snippet_has_highlight(self):
+        """snippet() 片段包含 <mark> 高亮"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_hl")
+            db = app.state.db
+
+            sid = f"test_{uuid.uuid4().hex[:8]}"
+            msgs = [{"role": "user", "content": "如何部署 FastAPI 应用到生产环境"}]
+            db.upsert_session(sid, user_id, msgs)
+
+            results = db.search_messages(user_id, "FastAPI")
+            assert len(results) >= 1
+            assert "<mark>" in results[0]["snippet"]
+            assert "FastAPI" in results[0]["snippet"]
+
+    def test_user_isolation(self):
+        """user_id 隔离生效：用户 A 搜不到用户 B 的消息"""
+        with TestClient(app) as client:
+            token_a, uid_a = _register(client, "iso_a")
+            token_b, uid_b = _register(client, "iso_b")
+            db = app.state.db
+
+            sid_a = f"test_{uuid.uuid4().hex[:8]}"
+            db.upsert_session(sid_a, uid_a, [
+                {"role": "user", "content": "用户A的秘密消息"}
+            ])
+
+            # 用户 B 搜索用户 A 的内容
+            results = db.search_messages(uid_b, "秘密消息")
+            assert len(results) == 0
+
+    def test_special_characters_safe(self):
+        """特殊字符不导致 SQL 错误"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_sp")
+            db = app.state.db
+
+            sid = f"test_{uuid.uuid4().hex[:8]}"
+            msgs = [{"role": "user", "content": '包含"双引号"的查询'}]
+            db.upsert_session(sid, user_id, msgs)
+
+            # 不应抛出异常
+            results = db.search_messages(user_id, '"双引号"')
+            assert isinstance(results, list)
+
+    def test_empty_query_returns_empty(self):
+        """空查询 / 纯空白返回空列表"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_emp")
+            db = app.state.db
+
+            assert db.search_messages(user_id, "") == []
+            assert db.search_messages(user_id, "   ") == []
+
+    def test_no_match_returns_empty(self):
+        """无匹配结果时返回空列表"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_nom")
+            db = app.state.db
+
+            sid = f"test_{uuid.uuid4().hex[:8]}"
+            msgs = [{"role": "user", "content": "天气真好"}]
+            db.upsert_session(sid, user_id, msgs)
+
+            results = db.search_messages(user_id, "量子力学")
+            assert results == []
+
+    def test_search_api_endpoint(self):
+        """GET /api/sessions/search API 端点正常工作"""
+        with TestClient(app) as client:
+            token, user_id = _register(client, "srch_api")
+            db = app.state.db
+
+            sid = f"test_{uuid.uuid4().hex[:8]}"
+            msgs = [{"role": "user", "content": "端到端测试消息内容"}]
+            db.upsert_session(sid, user_id, msgs)
+
+            resp = client.get(
+                "/api/sessions/search?q=端到端测试",
+                headers=_auth(token),
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert isinstance(data, list)
+            assert len(data) >= 1
+            assert data[0]["session_id"] == sid
+
+    def test_search_api_requires_auth(self):
+        """搜索 API 需要认证"""
+        with TestClient(app) as client:
+            resp = client.get("/api/sessions/search?q=test")
+            assert resp.status_code == 401
