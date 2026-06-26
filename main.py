@@ -50,10 +50,17 @@ except AttributeError:
 
 # ──── FastAPI 应用 ────
 @asynccontextmanager
-async def lifespan(a: FastAPI):
-    """启动时初始化数据库，关闭时清理连接"""
-    a.state.db = Database(os.path.join(_PROJECT_DIR, "data.db"))
+async def lifespan(app: FastAPI):
+    """启动时初始化数据库（含迁移校验），关闭时执行 WAL 检查点"""
+    db = Database(os.path.join(_PROJECT_DIR, "data.db"))
+    app.state.db = db
     yield
+    # 关闭时强制 WAL 检查点，将 -wal 文件内容写入主数据库
+    try:
+        with db._conn() as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception:
+        pass
 
 app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
 
