@@ -5,28 +5,8 @@ import { projectsApi } from '@/api/projects';
 import { ProjectCard } from '@/components/shared/ProjectCard';
 import { CreateDialog } from '@/components/shared/CreateDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { ArrowLeft, UserPlus, Trash2, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { hasPermission } from '@/lib/permissions';
 import { toast } from 'sonner';
 
@@ -34,6 +14,7 @@ export function WorkspaceDetail() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const inviteDialogRef = useRef<HTMLDialogElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['workspace', workspaceId],
@@ -63,14 +44,15 @@ export function WorkspaceDetail() {
       navigate(`/w/${workspaceId}/p/${data.id}/chat`);
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || '创建失败';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        '创建失败';
       toast.error(msg);
     },
   });
 
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
-  const [inviteOpen, setInviteOpen] = useState(false);
 
   const inviteMutation = useMutation({
     mutationFn: async () => {
@@ -82,11 +64,13 @@ export function WorkspaceDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workspace', workspaceId] });
       toast.success(`${inviteName} 已加入工作空间`);
-      setInviteOpen(false);
+      inviteDialogRef.current?.close();
       setInviteName('');
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || '邀请失败';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        '邀请失败';
       toast.error(msg);
     },
   });
@@ -98,7 +82,7 @@ export function WorkspaceDetail() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="loading loading-spinner loading-lg text-[#4f8cff]" />
       </div>
     );
   }
@@ -106,84 +90,105 @@ export function WorkspaceDetail() {
   if (!data) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> 返回
-        </Button>
+        <button className="btn btn-ghost btn-sm mb-4" onClick={() => navigate('/')}>
+          <ArrowLeft size={16} /> 返回
+        </button>
         <EmptyState title="工作空间不存在" description="该工作空间可能已被删除" />
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* 返回 + 标题 */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Button variant="ghost" className="mb-2 -ml-2" onClick={() => navigate('/')}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> 返回
-          </Button>
-          <h1 className="text-2xl font-bold">{data.name}</h1>
-          <p className="text-muted-foreground mt-1">{data.description || '暂无描述'}</p>
+          <button className="btn btn-ghost btn-sm mb-2 -ml-2" onClick={() => navigate('/')}>
+            <ArrowLeft size={16} /> 返回
+          </button>
+          <h1 className="text-2xl font-bold text-[#1d1d1f]">{data.name}</h1>
+          <p className="text-[#81858c] mt-1">{data.description || '暂无描述'}</p>
         </div>
         <div className="flex gap-2">
           {canInvite && (
-            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <UserPlus className="mr-2 h-4 w-4" /> 邀请成员
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>邀请成员</DialogTitle>
-                  <DialogDescription>输入已注册用户的用户名</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>用户名</Label>
-                    <Input
-                      value={inviteName}
-                      onChange={(e) => setInviteName(e.target.value)}
-                      placeholder="输入用户名"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>角色</Label>
-                    <Select value={inviteRole} onValueChange={setInviteRole}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member — 可编辑项目</SelectItem>
-                        <SelectItem value="viewer">Viewer — 只读</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={() => inviteMutation.mutate()} disabled={!inviteName.trim()}>
-                    邀请
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <button
+              className="btn btn-outline btn-sm"
+              style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
+              onClick={() => inviteDialogRef.current?.showModal()}
+            >
+              <UserPlus size={16} /> 邀请成员
+            </button>
           )}
         </div>
       </div>
 
+      {/* 邀请成员弹窗 */}
+      <dialog ref={inviteDialogRef} className="modal">
+        <div className="modal-box" style={{ borderRadius: '16px', padding: 0, overflow: 'hidden' }}>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <h3 className="text-base font-semibold text-[#1d1d1f]">邀请成员</h3>
+            <form method="dialog">
+              <button className="w-7 h-7 rounded-full border-none bg-transparent text-[#9ca3af] cursor-pointer flex items-center justify-center text-sm hover:bg-[#f3f4f6] hover:text-[#4b5563]">
+                ✕
+              </button>
+            </form>
+          </div>
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium mb-1 text-[#81858c]">用户名</label>
+              <input
+                className="input input-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                placeholder="输入已注册用户的用户名"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1 text-[#81858c]">角色</label>
+              <select
+                className="select select-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                <option value="member">Member — 可编辑项目</option>
+                <option value="viewer">Viewer — 只读</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 px-5 pb-5">
+            <form method="dialog">
+              <button className="btn btn-ghost btn-sm" style={{ borderRadius: '10px' }}>取消</button>
+            </form>
+            <button
+              className="btn btn-sm"
+              disabled={!inviteName.trim()}
+              onClick={() => inviteMutation.mutate()}
+              style={{ background: 'var(--brand-primary)', color: '#fff', borderRadius: '10px', border: 'none' }}
+            >
+              邀请
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
+
       {/* 成员列表 */}
       <div className="mb-8">
-        <h2 className="text-sm font-medium text-muted-foreground mb-3">
+        <h2 className="text-sm font-medium text-[#81858c] mb-3">
           成员 ({data.members?.length ?? 0})
         </h2>
         <div className="flex flex-wrap gap-2">
           {data.members?.map((m) => (
-            <Badge key={m.user_id} variant="secondary" className="flex items-center gap-1">
+            <span key={m.user_id} className="badge badge-ghost gap-1">
               {m.name}
               <span className="text-xs opacity-50">
                 ({m.role === 'owner' ? 'Owner' : m.role === 'member' ? 'Member' : 'Viewer'})
               </span>
-            </Badge>
+            </span>
           ))}
         </div>
       </div>
@@ -191,7 +196,7 @@ export function WorkspaceDetail() {
       {/* 项目列表 */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-muted-foreground">
+          <h2 className="text-sm font-medium text-[#81858c]">
             项目 ({data.projects?.length ?? 0})
           </h2>
           {canCreate && (

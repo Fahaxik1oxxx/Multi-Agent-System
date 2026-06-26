@@ -29,9 +29,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 import config as _cfg
 from user.db import Database
@@ -66,10 +65,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
 
-# ──── 静态文件 & 模板 ────
-app.mount("/static", StaticFiles(directory=os.path.join(_PROJECT_DIR, "static")), name="static")
+# ──── 静态文件 ────
 app.mount("/coding", StaticFiles(directory=os.path.join(_PROJECT_DIR, "coding")), name="coding")
-templates = Jinja2Templates(directory=os.path.join(_PROJECT_DIR, "templates"))
 
 # ──── 路由 ────
 from app.knowledge import router as knowledge_router
@@ -86,19 +83,14 @@ app.include_router(workspace_router, prefix="/api/workspaces", tags=["工作空�
 app.include_router(project_router, prefix="/api", tags=["项目"])
 app.include_router(admin_router, prefix="/api/admin", tags=["管理"])
 
+from router.router import router as chat_router
+app.include_router(chat_router, prefix="/api", tags=["流式聊天"])
 
-@app.get("/", response_class=HTMLResponse, tags=["页面"])
-async def index(request: Request):
-    """聊天主页"""
-    return templates.TemplateResponse(
-        request=request,
-        name="index.html",
-        context={
-            "role_model": ROLE_MODEL,
-            "get_model_display": get_model_display,
-            "model_pool": _cfg.MODEL_POOL,
-        },
-    )
+
+@app.get("/api/health", tags=["系统"])
+async def health():
+    """健康检查"""
+    return JSONResponse({"status": "ok", "version": "3.5"})
 
 
 @app.post("/api/chat", tags=["聊天"])
@@ -167,35 +159,6 @@ async def generate_report(request: Request):
         report_path = ""
 
     return JSONResponse({"content": report, "path": report_path})
-
-
-# ──── 开发模式：反向代理到 Vite dev server ────
-_DEV_MODE = os.getenv("DEV_MODE", "0") == "1"
-
-if _DEV_MODE:
-    import httpx
-
-    @app.api_route("/app/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-    async def proxy_to_vite(path: str, request: Request):
-        """开发模式：将 /app/* 代理到 Vite dev server (port 5173)"""
-        client = httpx.AsyncClient(base_url="http://localhost:5173")
-        url = f"/{path}"
-        headers = dict(request.headers)
-        headers.pop("host", None)
-        try:
-            r = await client.request(
-                method=request.method,
-                url=url,
-                headers=headers,
-                content=await request.body(),
-            )
-            return StreamingResponse(
-                r.iter_bytes(),
-                status_code=r.status_code,
-                headers=dict(r.headers),
-            )
-        finally:
-            await client.aclose()
 
 
 # ──── 启动 ────

@@ -1,5 +1,4 @@
 import { useLocation } from 'react-router-dom';
-import { ChevronRight, Slash } from 'lucide-react';
 
 const routeLabels: Record<string, string> = {
   '/': '工作空间总览',
@@ -8,18 +7,20 @@ const routeLabels: Record<string, string> = {
   '/admin': '管理后台',
 };
 
-function getBreadcrumbs(pathname: string): string[] {
+function getBreadcrumbs(pathname: string): { label: string; path: string }[] {
   const parts = pathname.split('/').filter(Boolean);
-  const crumbs: string[] = [];
+  const crumbs: { label: string; path: string }[] = [{ label: '首页', path: '/' }];
 
   if (parts[0] === 'w' && parts[1]) {
-    crumbs.push('工作空间');
+    crumbs.push({ label: '工作空间', path: `/w/${parts[1]}` });
     if (parts[2] === 'p' && parts[3]) {
-      crumbs.push('项目');
-      if (parts[4] === 'chat') crumbs.push('对话');
+      crumbs.push({ label: '项目', path: `/w/${parts[1]}/p/${parts[3]}/chat` });
+      if (parts[4] === 'chat') crumbs.push({ label: '对话', path: '' });
+      else if (parts[4] === 'orchestra') crumbs.push({ label: '编排', path: '' });
+      else if (parts[4] === 'monitor') crumbs.push({ label: '监控', path: '' });
     }
-  } else {
-    crumbs.push(routeLabels[pathname] || routeLabels['/']);
+  } else if (pathname !== '/') {
+    crumbs.push({ label: routeLabels[pathname] || pathname, path: '' });
   }
 
   return crumbs;
@@ -30,15 +31,24 @@ export function Header() {
   const crumbs = getBreadcrumbs(location.pathname);
 
   return (
-    <header className="flex h-14 items-center gap-2 border-b px-6">
-      {crumbs.map((crumb, i) => (
-        <span key={i} className="flex items-center gap-2 text-sm">
-          {i > 0 && <Slash className="h-3 w-3 text-muted-foreground" />}
-          <span className={i === crumbs.length - 1 ? 'font-medium' : 'text-muted-foreground'}>
-            {crumb}
-          </span>
-        </span>
-      ))}
+    <header className="navbar min-h-0 h-14 border-b px-6" style={{ background: 'var(--bg-chat)' }}>
+      <div className="flex-1">
+        <div className="breadcrumbs text-sm py-0">
+          <ul>
+            {crumbs.map((crumb, i) => (
+              <li key={i}>
+                {i < crumbs.length - 1 ? (
+                  <a href={crumb.path} className="text-[#81858c] hover:text-[#4f8cff]">
+                    {crumb.label}
+                  </a>
+                ) : (
+                  <span className="font-medium text-[#1d1d1f]">{crumb.label}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </header>
   );
 }

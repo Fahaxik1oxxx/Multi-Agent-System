@@ -1,10 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Bot, Loader2 } from 'lucide-react';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
@@ -39,7 +34,9 @@ export function RegisterPage() {
       toast.success('注册成功！');
       navigate('/', { replace: true });
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || '注册失败';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        '注册失败';
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -47,19 +44,22 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <Bot className="mx-auto h-10 w-10 text-primary" />
-          <CardTitle className="text-xl">创建账号</CardTitle>
-          <CardDescription>加入 Multi-Agent 公共平台</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">用户名</Label>
-              <Input
-                id="name"
+    <div className="flex min-h-screen items-center justify-center bg-[#f8f9fc] p-4">
+      <div className="card bg-base-100 w-full max-w-sm shadow-sm border border-[#e0e4e8]">
+        <div className="card-body">
+          <div className="text-center mb-2">
+            <h2 className="text-xl font-bold text-[#1d1d1f]">创建账号</h2>
+            <p className="text-sm text-[#81858c] mt-1">加入 Multi-Agent 公共平台</p>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="label py-1">
+                <span className="label-text text-sm text-[#81858c]">用户名</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
                 placeholder="3-20 个字符"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -67,43 +67,57 @@ export function RegisterPage() {
                 autoFocus
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
-              <Input
-                id="password"
+            <div>
+              <label className="label py-1">
+                <span className="label-text text-sm text-[#81858c]">密码</span>
+              </label>
+              <input
                 type="password"
+                className="input input-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
                 placeholder="至少 6 位"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm">确认密码</Label>
-              <Input
-                id="confirm"
+            <div>
+              <label className="label py-1">
+                <span className="label-text text-sm text-[#81858c]">确认密码</span>
+              </label>
+              <input
                 type="password"
+                className="input input-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
                 placeholder="再次输入密码"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
               />
             </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-3">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <button
+              type="submit"
+              className="btn w-full"
+              disabled={loading}
+              style={{
+                background: 'var(--brand-primary)',
+                color: '#fff',
+                borderRadius: '10px',
+                border: 'none',
+              }}
+            >
+              {loading ? <span className="loading loading-spinner loading-sm" /> : null}
               注册
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              已有账号？{' '}
-              <Link to="/login" className="text-primary hover:underline">
-                去登录
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
+            </button>
+          </form>
+          <p className="text-center text-sm text-[#81858c] mt-2">
+            已有账号？{' '}
+            <Link to="/login" className="text-[#4f8cff] hover:underline">
+              去登录
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

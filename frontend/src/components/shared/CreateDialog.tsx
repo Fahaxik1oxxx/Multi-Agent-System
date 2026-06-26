@@ -1,18 +1,4 @@
-import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 
 interface CreateDialogProps {
   title: string;
@@ -37,17 +23,17 @@ export function CreateDialog({
   showDescription = true,
   onSubmit,
 }: CreateDialogProps) {
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [loading, setLoading] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
     setLoading(true);
     try {
       await onSubmit(name.trim(), desc.trim());
-      setOpen(false);
+      dialogRef.current?.close();
       setName('');
       setDesc('');
     } finally {
@@ -55,45 +41,77 @@ export function CreateDialog({
     }
   };
 
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const handleClose = () => {
+      setName('');
+      setDesc('');
+    };
+    dialog.addEventListener('close', handleClose);
+    return () => dialog.removeEventListener('close', handleClose);
+  }, []);
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>{triggerLabel}</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{nameLabel}</Label>
-            <Input
-              placeholder={namePlaceholder}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            />
+    <>
+      <button className="btn" style={{ background: 'var(--brand-primary)', color: '#fff', borderRadius: '10px', border: 'none' }} onClick={() => dialogRef.current?.showModal()}>
+        {triggerLabel}
+      </button>
+      <dialog ref={dialogRef} className="modal">
+        <div className="modal-box" style={{ borderRadius: '16px', padding: 0, overflow: 'hidden' }}>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <h3 className="text-base font-semibold text-[#1d1d1f]">{title}</h3>
+            <form method="dialog">
+              <button className="w-7 h-7 rounded-full border-none bg-transparent text-[#9ca3af] cursor-pointer flex items-center justify-center text-sm hover:bg-[#f3f4f6] hover:text-[#4b5563]">
+                ✕
+              </button>
+            </form>
           </div>
-          {showDescription && (
-            <div className="space-y-2">
-              <Label>{descLabel}</Label>
-              <Textarea
-                placeholder={descPlaceholder}
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                rows={3}
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="block text-xs font-medium mb-1 text-[#81858c]">{nameLabel}</label>
+              <input
+                className="input input-bordered w-full"
+                style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
+                placeholder={namePlaceholder}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               />
             </div>
-          )}
+            {showDescription && (
+              <div>
+                <label className="block text-xs font-medium mb-1 text-[#81858c]">{descLabel}</label>
+                <textarea
+                  className="textarea textarea-bordered w-full"
+                  style={{ borderRadius: '10px', borderColor: '#e0e4e8' }}
+                  placeholder={descPlaceholder}
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 px-5 pb-5">
+            <form method="dialog">
+              <button className="btn btn-ghost btn-sm" style={{ borderRadius: '10px' }}>取消</button>
+            </form>
+            <button
+              className="btn btn-sm"
+              disabled={loading || !name.trim()}
+              onClick={handleSubmit}
+              style={{ background: 'var(--brand-primary)', color: '#fff', borderRadius: '10px', border: 'none' }}
+            >
+              {loading ? <span className="loading loading-spinner loading-sm" /> : null}
+              创建
+            </button>
+          </div>
         </div>
-        <DialogFooter>
-          <Button onClick={handleSubmit} disabled={loading || !name.trim()}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            创建
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <form method="dialog" className="modal-backdrop">
+          <button>close</button>
+        </form>
+      </dialog>
+    </>
   );
 }

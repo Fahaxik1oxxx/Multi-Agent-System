@@ -5,7 +5,6 @@ import { WorkspaceCard } from '@/components/shared/WorkspaceCard';
 import { CreateDialog } from '@/components/shared/CreateDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
 
 export function WorkspaceOverview() {
   const queryClient = useQueryClient();
@@ -30,17 +29,19 @@ export function WorkspaceOverview() {
       navigate(`/w/${data.id}`);
     },
     onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error || '创建失败';
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        '创建失败';
       toast.error(msg);
     },
   });
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">工作空间</h1>
-          <p className="text-muted-foreground mt-1">管理你的团队和智能体项目</p>
+          <h1 className="text-2xl font-bold text-[#1d1d1f]">工作空间</h1>
+          <p className="text-[#81858c] mt-1">管理你的团队和智能体项目</p>
         </div>
         <CreateDialog
           title="创建工作空间"
@@ -56,7 +57,7 @@ export function WorkspaceOverview() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-40 animate-pulse rounded-lg bg-muted" />
+            <div key={i} className="h-40 animate-pulse rounded-lg bg-gray-100" />
           ))}
         </div>
       ) : workspaces && workspaces.length > 0 ? (
