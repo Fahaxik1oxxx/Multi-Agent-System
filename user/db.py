@@ -13,6 +13,11 @@ from contextlib import contextmanager
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
+    TARGET_SCHEMA_VERSION = 2
+    # 0 → 无数据库 / 未初始化
+    # 1 → 初始表: users, sessions, user_configs
+    # 2 → 新增: messages_fts (FTS5)
+
     def __init__(self, db_path: str):
         self._path = db_path
         self._init_db()
@@ -21,6 +26,38 @@ class Database:
         with self._conn() as conn:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA foreign_keys=ON")
+
+            # 1. 确保 schema_version 表存在
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS schema_version (
+                    version     INTEGER PRIMARY KEY,
+                    applied_at  TEXT DEFAULT (datetime('now', 'localtime'))
+                )
+            """)
+
+            # 2. 读取当前数据库版本（无记录则为 0）
+            row = conn.execute(
+                "SELECT MAX(version) FROM schema_version"
+            ).fetchone()
+            current = row[0] if row[0] is not None else 0
+
+            # 3. 版本超前检查
+            if current > self.TARGET_SCHEMA_VERSION:
+                raise RuntimeError(
+                    f"数据库 schema 版本 {current} 高于代码版本 "
+                    f"{self.TARGET_SCHEMA_VERSION}，请升级代码或回滚数据库。"
+                )
+
+            # 4. 执行缺失的迁移
+            for v in range(current + 1, self.TARGET_SCHEMA_VERSION + 1):
+                self._run_migration(conn, v)
+                conn.execute(
+                    "INSERT INTO schema_version (version) VALUES (?)", (v,)
+                )
+
+    def _run_migration(self, conn, version: int):
+        """执行指定版本的数据库迁移（幂等 — 全部使用 IF NOT EXISTS）"""
+        if version == 1:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
                     id         TEXT PRIMARY KEY,
@@ -44,6 +81,11 @@ class Database:
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 );
             """)
+        elif version == 2:
+            # 将在 Task 2 中实现 messages_fts 创建和回填
+            pass
+        else:
+            raise ValueError(f"未知的迁移版本: {version}")
 
     @contextmanager
     def _conn(self):
