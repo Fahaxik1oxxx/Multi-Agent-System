@@ -75,6 +75,7 @@ templates = Jinja2Templates(directory=os.path.join(_PROJECT_DIR, "templates"))
 from app.knowledge import router as knowledge_router
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["知识库"])
 
+from user.auth import decode_jwt
 from user.routes import auth_router, session_router, user_router
 app.include_router(auth_router, prefix="/api/auth", tags=["认证"])
 app.include_router(session_router, prefix="/api/sessions", tags=["会话"])
@@ -102,15 +103,31 @@ async def index(request: Request):
 
 @app.post("/api/chat", tags=["聊天"])
 async def chat(request: Request):
-    """处理用户消息，返回 Agent 协作结果"""
+    """处理用户消息，返回 Agent 协作结果（支持用户自定义 API Key）"""
     from app.chat import run_chat_pipeline
 
     data = await request.json()
     user_input = data.get("message", "")
     lane_mode = data.get("lane_mode", "auto")
     history = data.get("history", [])
+    model_config_override = data.get("model_config", None)
+
+    # 尝试从 JWT 解析用户，使用其自定义 API Key
+    auth = request.headers.get("Authorization", "")
+    user_id = None
+    if auth.startswith("Bearer "):
+        payload = decode_jwt(auth[7:])
+        if payload:
+            user_id = payload["sub"]
+
     try:
-        result = run_chat_pipeline(user_input, history=history, lane_mode=lane_mode)
+        result = run_chat_pipeline(
+            user_input,
+            history=history,
+            lane_mode=lane_mode,
+            model_config_override=model_config_override,
+            user_id=user_id,
+        )
         return JSONResponse(result)
     except Exception as e:
         import traceback

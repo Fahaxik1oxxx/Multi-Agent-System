@@ -227,3 +227,106 @@ async def delete_custom_model(request: Request, model_key: str, user: dict = Dep
 
     db.upsert_user_config(user["user_id"], cfg["roles"], cfg["models"])
     return JSONResponse({"status": "ok"})
+
+
+# ──── 用户 Profile ────
+
+@user_router.get("/profile")
+async def get_profile(request: Request, user: dict = Depends(require_auth)):
+    db = _get_db(request)
+    u = db.get_user_by_id(user["user_id"])
+    is_admin = db.is_admin(user["user_id"])
+    return JSONResponse({
+        "user_id": u["id"],
+        "user_name": u["name"],
+        "is_admin": is_admin,
+    })
+
+
+@user_router.put("/profile")
+async def update_profile(request: Request, user: dict = Depends(require_auth)):
+    """更新用户名或密码"""
+    data = await request.json()
+    db = _get_db(request)
+    new_name = (data.get("name") or "").strip()
+    new_password = data.get("password", "")
+
+    if new_name:
+        existing = db.get_user(new_name)
+        if existing and existing["id"] != user["user_id"]:
+            return JSONResponse({"error": "用户名已被占用"}, status_code=409)
+        # 更新用户名
+        with db._conn() as conn:
+            conn.execute(
+                "UPDATE users SET name = ? WHERE id = ?",
+                (new_name, user["user_id"]),
+            )
+
+    if new_password:
+        hashed = hash_password(new_password)
+        with db._conn() as conn:
+            conn.execute(
+                "UPDATE users SET password = ? WHERE id = ?",
+                (hashed, user["user_id"]),
+            )
+
+    return JSONResponse({"status": "ok"})
+
+
+# ──── API Key 管理 ────
+
+@user_router.get("/api-key")
+async def get_api_key(request: Request, user: dict = Depends(require_auth)):
+    """返回用户自定义 API Key 的状态（不返回完整 Key）"""
+    db = _get_db(request)
+    cfg = db.get_user_config(user["user_id"])
+    models = cfg["models"] if cfg else []
+    # 在自定义模型列表中查找默认 provider 的 Key
+    has_custom = any(
+        m.get("key") == "a-deepseek" for m in models
+    )
+    return JSONResponse({
+        "has_custom_key": has_custom,
+        "using_system_default": not has_custom,
+    })
+
+
+@user_router.put("/api-key")
+async def update_api_key(request: Request, user: dict = Depends(require_auth)):
+    """保存自定义 API Key（作为自定义模型 "a-deepseek" 存储）"""
+    data = await request.json()
+    api_key = (data.get("api_key") or "").strip()
+    if not api_key:
+        return JSONResponse({"error": "API Key 不能为空"}, status_code=400)
+
+    db = _get_db(request)
+    cfg = db.get_user_config(user["user_id"])
+    models = cfg["models"] if cfg else []
+    roles = cfg["roles"] if cfg else {}
+
+    # 覆盖或添加 a-deepseek 的自定义 Key
+    existing = next((m for m in models if m.get("key") == "a-deepseek"), None)
+    if existing:
+        existing["api_key"] = api_key
+    else:
+        models.append({
+            "key": "a-deepseek",
+            "model": "deepseek-v4-flash",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key": api_key,
+        })
+
+    db.upsert_user_config(user["user_id"], roles, models)
+    return JSONResponse({"status": "ok"})
+
+
+@user_router.delete("/api-key")
+async def remove_api_key(request: Request, user: dict = Depends(require_auth)):
+    """删除自定义 API Key，回退到系统默认"""
+    db = _get_db(request)
+    cfg = db.get_user_config(user["user_id"])
+    if not cfg:
+        return JSONResponse({"status": "ok"})
+    cfg["models"] = [m for m in cfg["models"] if m.get("key") != "a-deepseek"]
+    db.upsert_user_config(user["user_id"], cfg["roles"], cfg["models"])
+    return JSONResponse({"status": "ok"})

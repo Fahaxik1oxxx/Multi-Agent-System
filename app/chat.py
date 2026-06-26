@@ -36,12 +36,15 @@ def _scan_generated_files(since: float | None = None) -> list[dict]:
     return files
 
 
-def run_chat_pipeline(user_input: str, history: list[dict] | None = None, lane_mode: str = "auto") -> dict:
+def run_chat_pipeline(user_input: str, history: list[dict] | None = None, lane_mode: str = "auto",
+                       user_id: str | None = None, model_config_override: dict | None = None) -> dict:
     """
     处理一条用户消息，返回:
       {"reply": "...", "thinking": [...], "task_type": "...", "speaking_log": [...], "generated_files": [...]}
 
     lane_mode: "auto" | "fast" | "slow"
+    user_id: 当前用户的 ID（用于加载自定义 API Key）—— TODO: 联动任务，Phase 1 预留
+    model_config_override: 前端传入的模型配置覆盖 —— TODO: 联动任务，Phase 1 预留
     """
     # 记录执行前时间戳，仅返回本次执行期间新生成的文件
     _ts_before = time.time()
