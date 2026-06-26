@@ -280,10 +280,10 @@ class Database:
             return None
 
     def get_user_by_id(self, user_id: str) -> dict | None:
-        """按 ID 查找用户。返回 {"id", "name"} 或 None。"""
+        """按 ID 查找用户。返回 {"id", "name", "created_at"} 或 None。"""
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT id, name FROM users WHERE id = ?", (user_id,)
+                "SELECT id, name, created_at FROM users WHERE id = ?", (user_id,)
             ).fetchone()
             if row:
                 return dict(row)

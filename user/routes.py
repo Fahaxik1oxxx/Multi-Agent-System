@@ -240,6 +240,7 @@ async def get_profile(request: Request, user: dict = Depends(require_auth)):
         "user_id": u["id"],
         "user_name": u["name"],
         "is_admin": is_admin,
+        "created_at": u.get("created_at", ""),
     })
 
 
@@ -281,13 +282,15 @@ async def get_api_key(request: Request, user: dict = Depends(require_auth)):
     db = _get_db(request)
     cfg = db.get_user_config(user["user_id"])
     models = cfg["models"] if cfg else []
-    # 在自定义模型列表中查找默认 provider 的 Key
-    has_custom = any(
-        m.get("key") == "a-deepseek" for m in models
-    )
+    custom = next((m for m in models if m.get("key") == "a-deepseek"), None)
+    has_custom = custom is not None
+    key_prefix = ""
+    if has_custom and custom.get("api_key"):
+        raw = custom["api_key"]
+        key_prefix = raw[:7] + "..." if len(raw) > 7 else raw[:3] + "..."
     return JSONResponse({
         "has_custom_key": has_custom,
-        "using_system_default": not has_custom,
+        "key_prefix": key_prefix,
     })
 
 
