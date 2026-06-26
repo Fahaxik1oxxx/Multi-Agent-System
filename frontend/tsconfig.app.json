@@ -21,6 +21,9 @@
       "@/*": ["./src/*"]
     },
 
+    /* TS 6.0 */
+    "ignoreDeprecations": "6.0",
+
     /* Strict */
     "strict": true,
 
