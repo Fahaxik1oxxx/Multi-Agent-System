@@ -82,10 +82,56 @@ class Database:
                 );
             """)
         elif version == 2:
-            # 将在 Task 2 中实现 messages_fts 创建和回填
-            pass
+            conn.executescript("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                    session_id,
+                    user_id,
+                    msg_index,
+                    role,
+                    content,
+                    tokenize='unicode61'
+                );
+            """)
+            # 回填已有会话
+            import json as _json
+            rows = conn.execute(
+                "SELECT id, user_id, messages FROM sessions"
+            ).fetchall()
+            for r in rows:
+                try:
+                    msgs = _json.loads(r["messages"])
+                except (_json.JSONDecodeError, TypeError):
+                    continue
+                for i, msg in enumerate(msgs):
+                    content = (msg.get("content", "") or "").strip()
+                    role = (msg.get("role", "") or "")
+                    if content:
+                        conn.execute(
+                            "INSERT INTO messages_fts"
+                            "(session_id, user_id, msg_index, role, content) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            (r["id"], r["user_id"], i, role, content),
+                        )
         else:
             raise ValueError(f"未知的迁移版本: {version}")
+
+    def _sync_fts(self, conn, session_id: str, user_id: str,
+                  messages: list[dict]) -> None:
+        """先删后插，将 messages 同步到 messages_fts。
+        调用方必须在同一个 with self._conn() 事务内传入 conn。"""
+        conn.execute(
+            "DELETE FROM messages_fts WHERE session_id = ?", (session_id,)
+        )
+        for i, msg in enumerate(messages):
+            content = (msg.get("content", "") or "").strip()
+            role = (msg.get("role", "") or "")
+            if content:
+                conn.execute(
+                    "INSERT INTO messages_fts"
+                    "(session_id, user_id, msg_index, role, content) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (session_id, user_id, i, role, content),
+                )
 
     @contextmanager
     def _conn(self):
@@ -182,12 +228,22 @@ class Database:
                     "VALUES (?, ?, ?, ?)",
                     (session_id, user_id, title, msgs_json),
                 )
+            # 同步 FTS5（同一事务内）
+            self._sync_fts(conn, session_id, user_id, messages)
         return session_id
 
     def delete_session(self, session_id: str) -> bool:
         with self._conn() as conn:
-            cur = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-            return cur.rowcount > 0
+            cur = conn.execute(
+                "DELETE FROM sessions WHERE id = ?", (session_id,)
+            )
+            if cur.rowcount > 0:
+                conn.execute(
+                    "DELETE FROM messages_fts WHERE session_id = ?",
+                    (session_id,),
+                )
+                return True
+            return False
 
     # ── 用户配置 ──
 
