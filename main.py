@@ -86,6 +86,9 @@ app.include_router(admin_router, prefix="/api/admin", tags=["管理"])
 from workspace.organizations import org_router
 app.include_router(org_router, prefix="/api/orgs", tags=["组织"])
 
+from workspace.team_chat import chat_router as team_chat_router
+app.include_router(team_chat_router, prefix="/api/orgs", tags=["团队聊天"])
+
 from router.router import router as chat_router
 app.include_router(chat_router, prefix="/api", tags=["流式聊天"])
 
