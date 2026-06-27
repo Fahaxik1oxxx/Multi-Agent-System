@@ -16,6 +16,7 @@ import { TemplateMarket } from '@/pages/templates/TemplateMarket';
 import { AgentDesigner } from '@/pages/agent-design/AgentDesigner';
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { TeamHome } from '@/pages/team/TeamHome';
+import { TeamChat } from '@/pages/team/TeamChat';
 import { KnowledgePage } from '@/pages/knowledge/KnowledgePage';
 
 export const router = createBrowserRouter([
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
       { path: 'knowledge', element: <KnowledgePage /> },
       { path: 'team', element: <TeamHome /> },
+      { path: 'team/:orgId', element: <TeamChat /> },
       {
         path: 'admin',
         element: (
