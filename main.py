@@ -83,6 +83,9 @@ app.include_router(workspace_router, prefix="/api/workspaces", tags=["工作空�
 app.include_router(project_router, prefix="/api", tags=["项目"])
 app.include_router(admin_router, prefix="/api/admin", tags=["管理"])
 
+from workspace.organizations import org_router
+app.include_router(org_router, prefix="/api/orgs", tags=["组织"])
+
 from router.router import router as chat_router
 app.include_router(chat_router, prefix="/api", tags=["流式聊天"])
 
@@ -143,6 +146,34 @@ async def chat(request: Request):
                 "task_type": "错误",
                 "generated_files": [],
             },
+            status_code=500,
+        )
+
+
+@app.post("/api/chat/guest", tags=["聊天"])
+async def chat_guest(request: Request):
+    """游客免认证聊天 — 无 session 持久化，使用平台默认 Key"""
+    from app.chat import run_chat_pipeline
+
+    data = await request.json()
+    user_input = data.get("message", "")
+    lane_mode = data.get("lane_mode", "auto")
+    history = data.get("history", [])
+
+    try:
+        result = run_chat_pipeline(
+            user_input,
+            history=history,
+            lane_mode=lane_mode,
+            user_id=None,
+        )
+        return JSONResponse(result)
+    except Exception as e:
+        import traceback
+        logging.error(f"游客聊天异常: {traceback.format_exc()}")
+        return JSONResponse(
+            {"reply": f"❌ 执行失败: {str(e)}", "error": str(e),
+             "thinking": [], "task_type": "错误", "generated_files": []},
             status_code=500,
         )
 
