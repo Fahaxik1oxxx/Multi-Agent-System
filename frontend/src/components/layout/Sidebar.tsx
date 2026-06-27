@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Puzzle, Settings, Shield, LogOut, Plus, Search, Trash2, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Puzzle, Settings, Shield, LogOut, Plus, Search, Trash2, MessageSquare, Bot } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { sessionsApi } from '@/api/sessions';
 import type { Session } from '@/types/api';
@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: '工作空间' },
+  { to: '/agents', icon: Bot, label: 'Agent 设计器' },
   { to: '/templates', icon: Puzzle, label: '模板市场' },
   { to: '/settings', icon: Settings, label: '个人设置' },
 ];

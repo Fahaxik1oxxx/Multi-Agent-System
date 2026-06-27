@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.1",
+    "@xyflow/react": "^12.11.1",
     "axios": "^1.18.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",
@@ -22,6 +23,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.0",
+    "recharts": "^3.9.0",
     "sonner": "^2.0.7",
     "zustand": "^5.0.14"
   },

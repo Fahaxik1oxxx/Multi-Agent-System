@@ -1,11 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useStreamChat } from '@/hooks/useStreamChat';
 import { Markdown } from '@/components/shared/Markdown';
 import { sessionsApi } from '@/api/sessions';
 import { knowledgeApi } from '@/api/knowledge';
 import { generateReportApi } from '@/api/client';
 import { toast } from 'sonner';
+import { RightPanel, RightPanelTabs } from '@/components/layout/RightPanel';
+import { AgentTab } from '@/components/layout/RightPanel/AgentTab';
+import { SessionInfoTab } from '@/components/layout/RightPanel/SessionInfoTab';
+import { FilesTab } from '@/components/layout/RightPanel/FilesTab';
 
 // ── Agent constants ──
 const ICONS: Record<string, string> = {
@@ -29,9 +33,11 @@ interface Message {
 }
 
 export function ChatPage() {
-  const { projectId } = useParams<{ workspaceId: string; projectId: string }>();
-  const { streaming, startStream, abortStream } = useStreamChat();
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
+  const navigate = useNavigate();
+  const { streaming, startStream, abortStream, resetStream } = useStreamChat();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [rightTab, setRightTab] = useState('session');
   const [laneMode, setLaneMode] = useState<'auto' | 'fast' | 'slow'>('auto');
   const [inputValue, setInputValue] = useState('');
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -115,10 +121,11 @@ export function ChatPage() {
       setAttachedFiles([]);
       setSessionId(null);
       sessionIdRef.current = null;
+      resetStream();
     };
     window.addEventListener('new-chat', handler);
     return () => window.removeEventListener('new-chat', handler);
-  }, []);
+  }, [resetStream]);
 
   // Smart scroll: 只在用户距底部 60px 内时自动滚动
   useEffect(() => {
@@ -327,9 +334,30 @@ export function ChatPage() {
     startStream(editValue.trim(), laneMode).catch(() => {});
   }, [editValue, editingIdx, messages, laneMode, startStream]);
 
+  const handleExportFromPanel = useCallback(() => {
+    const lastAssist = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (lastAssist?.thinking && lastAssist.thinking.length > 0) {
+      handleGenerateReport(lastAssist.thinking);
+    } else {
+      toast.error('无可用的思考记录');
+    }
+  }, [messages]);
+
   return (
     <>
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg-chat)' }}>
+    <div className="flex h-full" style={{ background: 'var(--bg-chat)' }}>
+    <div className="flex flex-col flex-1 min-w-0 h-full">
+      {/* 顶部 Tab 导航 */}
+      <div className="flex items-center gap-1 px-4 py-1.5 text-sm shrink-0" style={{ borderBottom: '1px solid #eceef2', background: '#fff' }}>
+        <span className="text-[#4f8cff] font-medium px-2">💬 对话</span>
+        <span className="text-[#d0d4d8]">|</span>
+        <button className="text-[#81858c] hover:text-[#1d1d1f] transition-colors px-2" onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/orchestra`)}>🗺️ 编排</button>
+        <span className="text-[#d0d4d8]">|</span>
+        <button className="text-[#81858c] hover:text-[#1d1d1f] transition-colors px-2" onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/monitor`)}>📡 监控</button>
+        <span className="text-[#d0d4d8]">|</span>
+        <button className="text-[#81858c] hover:text-[#1d1d1f] transition-colors px-2" onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/eval`)}>📊 仪表盘</button>
+      </div>
+
       {/* Messages */}
       {/* Drag overlay */}
       {isDragging && <div className="drag-overlay show">释放文件以上传到知识库</div>}
@@ -484,8 +512,35 @@ export function ChatPage() {
       </div>
     </div>
 
-      {/* 报告预览弹窗 */}
-      <dialog ref={reportDialogRef} className="modal">
+    {/* 右侧栏 */}
+    <RightPanel>
+      <RightPanelTabs
+        tabs={[
+          { key: 'agents', label: 'Agent 配置' },
+          { key: 'session', label: '会话信息' },
+          { key: 'files', label: '文件' },
+        ]}
+        activeTab={rightTab}
+        onTabChange={setRightTab}
+      />
+      <div className="p-3">
+        {rightTab === 'agents' && <AgentTab projectId={projectId!} />}
+        {rightTab === 'session' && (
+          <SessionInfoTab
+            taskType={streaming.taskType}
+            complexity=""
+            agentStats={streaming.agentStats}
+            thinkingOrder={streaming.thinkingOrder}
+            onExport={handleExportFromPanel}
+          />
+        )}
+        {rightTab === 'files' && <FilesTab projectId={projectId!} />}
+      </div>
+    </RightPanel>
+  </div>
+
+  {/* 报告预览弹窗 */}
+  <dialog ref={reportDialogRef} className="modal">
         <div className="modal-box" style={{ borderRadius: '16px', padding: 0, overflow: 'hidden', maxWidth: '720px', width: '90vw' }}>
           <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
             <h3 className="text-base font-semibold text-[#1d1d1f]">报告预览</h3>

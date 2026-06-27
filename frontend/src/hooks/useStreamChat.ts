@@ -9,16 +9,20 @@ export interface StreamEvent {
   reply?: string;
   thinking?: Array<{ name: string; content: string }>;
   task_type?: string;
+  elapsed_ms?: number;
+  token_count?: number;
 }
 
 export interface StreamingState {
   sessionId: string | null;
   isStreaming: boolean;
-  thinking: Map<string, string>; // agent name → accumulated content
-  thinkingOrder: string[];       // agent name in order of appearance
+  thinking: Map<string, string>;
+  thinkingOrder: string[];
   currentAgent: string | null;
   reply: string;
   error: string | null;
+  agentStats: Map<string, { elapsed_ms: number; token_count: number }>;
+  taskType: string;
 }
 
 export function useStreamChat() {
@@ -30,12 +34,22 @@ export function useStreamChat() {
     currentAgent: null,
     reply: '',
     error: null,
+    agentStats: new Map(),
+    taskType: '',
   });
 
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
   const sessionRef = useRef<string | null>(null);
+  const onCompleteRef = useRef<((reply: string, thinking: Array<{name: string; content: string}>, taskType: string) => void) | undefined>(undefined);
 
-  const startStream = useCallback(async (message: string, laneMode: string = 'auto') => {
+  const startStream = useCallback(async (
+    message: string,
+    laneMode: string = 'auto',
+    onComplete?: (reply: string, thinking: Array<{name: string; content: string}>, taskType: string) => void,
+  ) => {
+    // Store callback for use in processEvent
+    onCompleteRef.current = onComplete;
+
     // Reset state
     setStreaming({
       sessionId: null,
@@ -45,6 +59,8 @@ export function useStreamChat() {
       currentAgent: null,
       reply: '',
       error: null,
+      agentStats: new Map(),
+      taskType: '',
     });
 
     try {
@@ -123,7 +139,6 @@ export function useStreamChat() {
       switch (event.type) {
         case 'agent_start':
           if (event.name) {
-            // 使用唯一key区分同一agent的多次循环: name_序号
             const count = thinkingOrder.filter(n => {
               const base = n.lastIndexOf('\x00');
               return (base === -1 ? n : n.slice(0, base)) === event.name;
@@ -136,7 +151,6 @@ export function useStreamChat() {
 
         case 'token':
           if (event.name && event.content) {
-            // 找到最新一次该agent的key
             const latestKey = [...thinkingOrder].reverse().find(n => {
               const base = n.lastIndexOf('\x00');
               return (base === -1 ? n : n.slice(0, base)) === event.name;
@@ -158,9 +172,32 @@ export function useStreamChat() {
               thinking.set(latestKey, event.content);
             }
           }
+          // 更新 agentStats
+          if (event.name) {
+            const stats = new Map(prev.agentStats);
+            stats.set(event.name, {
+              elapsed_ms: event.elapsed_ms || 0,
+              token_count: event.token_count || 0,
+            });
+            return { ...prev, thinking, agentStats: stats };
+          }
           return { ...prev, thinking };
 
-        case 'done':
+        case 'done': {
+          const taskType = event.task_type || '';
+          // 构建 thinking 数组供 onComplete 使用
+          const thinkArr: Array<{name: string; content: string}> = [];
+          thinkingOrder.forEach(k => {
+            const base = k.lastIndexOf('\x00');
+            const name = base === -1 ? k : k.slice(0, base);
+            thinkArr.push({ name, content: thinking.get(k) || '' });
+          });
+          // 延迟调用 onComplete，确保 state 已更新
+          if (onCompleteRef.current) {
+            setTimeout(() => {
+              onCompleteRef.current?.(event.reply || '', thinkArr, taskType);
+            }, 50);
+          }
           return {
             ...prev,
             isStreaming: false,
@@ -168,7 +205,9 @@ export function useStreamChat() {
             thinking,
             thinkingOrder,
             currentAgent: null,
+            taskType,
           };
+        }
 
         case 'error':
           return {
@@ -211,6 +250,7 @@ export function useStreamChat() {
   }, []);
 
   const resetStream = useCallback(() => {
+    onCompleteRef.current = undefined;
     setStreaming({
       sessionId: null,
       isStreaming: false,
@@ -219,6 +259,8 @@ export function useStreamChat() {
       currentAgent: null,
       reply: '',
       error: null,
+      agentStats: new Map(),
+      taskType: '',
     });
   }, []);
 

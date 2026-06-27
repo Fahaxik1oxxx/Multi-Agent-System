@@ -13,11 +13,12 @@ from contextlib import contextmanager
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 3
+    TARGET_SCHEMA_VERSION = 4
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
     # 3 → 新增: workspaces, workspace_members, projects + is_admin 列
+    # 4 → 新增: eval_logs
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -145,6 +146,23 @@ class Database:
                     created_by   TEXT NOT NULL REFERENCES users(id),
                     created_at   TEXT DEFAULT (datetime('now', 'localtime'))
                 );
+            """)
+        elif version == 4:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS eval_logs (
+                    id           TEXT PRIMARY KEY,
+                    project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    session_id   TEXT DEFAULT '',
+                    task_type    TEXT DEFAULT '',
+                    complexity   TEXT DEFAULT '',
+                    agent_count  INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    elapsed_ms   INTEGER DEFAULT 0,
+                    has_error    INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_eval_project ON eval_logs(project_id);
+                CREATE INDEX IF NOT EXISTS idx_eval_created ON eval_logs(created_at);
             """)
         else:
             raise ValueError(f"未知的迁移版本: {version}")
@@ -535,6 +553,49 @@ class Database:
                 "SELECT id, name, is_admin, created_at FROM users ORDER BY created_at"
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ── 评估日志 ──
+
+    def create_eval_log(self, project_id: str, session_id: str = "",
+                        task_type: str = "", complexity: str = "",
+                        agent_count: int = 0, total_tokens: int = 0,
+                        elapsed_ms: int = 0, has_error: int = 0) -> str:
+        eid = str(uuid.uuid4())[:8]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO eval_logs (id, project_id, session_id, task_type, "
+                "complexity, agent_count, total_tokens, elapsed_ms, has_error) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (eid, project_id, session_id, task_type, complexity,
+                 agent_count, total_tokens, elapsed_ms, has_error),
+            )
+        return eid
+
+    def get_eval_stats(self, project_id: str = "") -> dict:
+        with self._conn() as conn:
+            where = "WHERE project_id = ?" if project_id else ""
+            params = (project_id,) if project_id else ()
+            total = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where}", params).fetchone()[0]
+            if total == 0:
+                return {"total": 0, "avg_elapsed_ms": 0, "total_tokens": 0,
+                        "error_rate": 0, "task_types": {}, "daily": []}
+            avg_elapsed = conn.execute(f"SELECT AVG(elapsed_ms) FROM eval_logs {where}", params).fetchone()[0] or 0
+            sum_tokens = conn.execute(f"SELECT SUM(total_tokens) FROM eval_logs {where}", params).fetchone()[0] or 0
+            error_count = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where} AND has_error = 1", params).fetchone()[0]
+            task_type_rows = conn.execute(
+                f"SELECT task_type, COUNT(*) as cnt FROM eval_logs {where} GROUP BY task_type ORDER BY cnt DESC", params
+            ).fetchall()
+            daily_rows = conn.execute(
+                f"SELECT DATE(created_at) as day, COUNT(*) as cnt, AVG(elapsed_ms) as avg_ms "
+                f"FROM eval_logs {where} GROUP BY day ORDER BY day DESC LIMIT 14", params
+            ).fetchall()
+            return {
+                "total": total, "avg_elapsed_ms": round(avg_elapsed),
+                "total_tokens": sum_tokens,
+                "error_rate": round(error_count / total * 100, 1) if total > 0 else 0,
+                "task_types": {r["task_type"]: r["cnt"] for r in task_type_rows},
+                "daily": [dict(r) for r in daily_rows],
+            }
 
     # ── 用户配置 ──
 

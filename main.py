@@ -93,6 +93,17 @@ async def health():
     return JSONResponse({"status": "ok", "version": "3.5"})
 
 
+@app.get("/scalar", include_in_schema=False)
+async def scalar_docs():
+    """Scalar API 文档 UI"""
+    from scalar_fastapi import get_scalar_api_reference
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(get_scalar_api_reference(
+        openapi_url="/openapi.json",
+        title="Multi-Agent API 文档",
+    ))
+
+
 @app.post("/api/chat", tags=["聊天"])
 async def chat(request: Request):
     """处理用户消息，返回 Agent 协作结果（支持用户自定义 API Key）"""

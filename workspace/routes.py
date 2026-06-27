@@ -201,3 +201,38 @@ async def toggle_admin(
     is_admin = data.get("is_admin", False)
     _get_db(request).set_user_admin(user_id, is_admin)
     return JSONResponse({"status": "ok"})
+
+
+# ──── 评估日志 ────
+
+@project_router.post("/eval/log")
+async def log_eval(request: Request, user: dict = Depends(require_auth)):
+    data = await request.json()
+    db = _get_db(request)
+    project_id = data.get("project_id", "")
+    if project_id:
+        proj = db.get_project(project_id)
+        if proj:
+            role = db.get_member_role(proj["workspace_id"], user["user_id"])
+            if role is None and not db.is_admin(user["user_id"]):
+                return JSONResponse({"error": "无权访问"}, status_code=403)
+    eid = db.create_eval_log(
+        project_id=project_id, session_id=data.get("session_id", ""),
+        task_type=data.get("task_type", ""), complexity=data.get("complexity", ""),
+        agent_count=data.get("agent_count", 0), total_tokens=data.get("total_tokens", 0),
+        elapsed_ms=data.get("elapsed_ms", 0), has_error=1 if data.get("has_error") else 0,
+    )
+    return JSONResponse({"id": eid, "status": "ok"})
+
+
+@project_router.get("/eval/stats/{project_id}")
+async def get_eval_stats(request: Request, project_id: str, user: dict = Depends(require_auth)):
+    db = _get_db(request)
+    proj = db.get_project(project_id)
+    if not proj:
+        return JSONResponse({"error": "项目不存在"}, status_code=404)
+    role = db.get_member_role(proj["workspace_id"], user["user_id"])
+    if role is None and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "无权访问"}, status_code=403)
+    stats = db.get_eval_stats(project_id)
+    return JSONResponse(stats)
