@@ -4,6 +4,7 @@ import { AdminGuard } from '@/components/auth/AdminGuard';
 import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { GuestChat } from '@/pages/project/GuestChat';
 import { WorkspaceOverview } from '@/pages/workspace/WorkspaceOverview';
 import { WorkspaceDetail } from '@/pages/workspace/WorkspaceDetail';
 import { ChatPage } from '@/pages/project/ChatPage';
@@ -14,6 +15,8 @@ import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { TemplateMarket } from '@/pages/templates/TemplateMarket';
 import { AgentDesigner } from '@/pages/agent-design/AgentDesigner';
 import { AdminPage } from '@/pages/admin/AdminPage';
+import { TeamHome } from '@/pages/team/TeamHome';
+import { KnowledgePage } from '@/pages/knowledge/KnowledgePage';
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +26,11 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  // 游客聊天页（免认证）
+  {
+    path: '/guest-chat',
+    element: <GuestChat />,
   },
   {
     path: '/',
@@ -41,6 +49,8 @@ export const router = createBrowserRouter([
       { path: 'templates', element: <TemplateMarket /> },
       { path: 'agents', element: <AgentDesigner /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'knowledge', element: <KnowledgePage /> },
+      { path: 'team', element: <TeamHome /> },
       {
         path: 'admin',
         element: (
