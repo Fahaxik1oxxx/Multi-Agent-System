@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Puzzle, Settings, Shield, LogOut, Plus, Search, Trash2, MessageSquare, Bot } from 'lucide-react';
+import { LayoutDashboard, Puzzle, Settings, Shield, LogOut, Plus, Search, Trash2, MessageSquare, Bot, BookOpen, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { sessionsApi } from '@/api/sessions';
 import type { Session } from '@/types/api';
@@ -10,6 +10,8 @@ const navItems = [
   { to: '/', icon: LayoutDashboard, label: '工作空间' },
   { to: '/agents', icon: Bot, label: 'Agent 设计器' },
   { to: '/templates', icon: Puzzle, label: '模板市场' },
+  { to: '/knowledge', icon: BookOpen, label: '知识库' },
+  { to: '/team', icon: Users, label: '团队' },
   { to: '/settings', icon: Settings, label: '个人设置' },
 ];
 
@@ -18,6 +20,7 @@ export function Sidebar() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Session[] | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSessions = useCallback(async () => {
@@ -74,12 +77,19 @@ export function Sidebar() {
     <div className="drawer-side">
       <label htmlFor="drawer" aria-label="关闭侧栏" className="drawer-overlay" />
       <div
-        className="flex flex-col p-3 w-72 h-full"
+        className={`flex flex-col p-3 h-full transition-all duration-200 ${collapsed ? 'w-14' : 'w-72'}`}
         style={{ background: 'var(--bg-sidebar)', borderRight: '1px solid #eceef2' }}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-center mb-2 shrink-0">
-          <h4 className="sidebar-logo">Multi-Agent</h4>
+        {/* Logo + Collapse */}
+        <div className="flex items-center justify-between mb-2 shrink-0">
+          {!collapsed && <h4 className="sidebar-logo">Multi-Agent</h4>}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="text-[#9ca3af] hover:text-[#4b5563] p-1 rounded-lg hover:bg-gray-100 transition-colors"
+            title={collapsed ? '展开侧栏' : '收起侧栏'}
+          >
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
         </div>
 
         {/* 新对话按钮 */}
@@ -88,10 +98,10 @@ export function Sidebar() {
             const event = new CustomEvent('new-chat');
             window.dispatchEvent(event);
           }}
-          className="new-chat-btn mx-auto mb-2 shrink-0"
+          className={`new-chat-btn mx-auto mb-2 shrink-0 ${collapsed ? '!w-8 !h-8 !p-0' : ''}`}
         >
           <Plus size={16} />
-          <span>开启新对话</span>
+          {!collapsed && <span>开启新对话</span>}
         </button>
 
         <div className="divider my-1 shrink-0" />
@@ -112,7 +122,7 @@ export function Sidebar() {
               }
             >
               <Icon size={16} />
-              {label}
+              {!collapsed && label}
             </NavLink>
           ))}
         </nav>
@@ -128,11 +138,12 @@ export function Sidebar() {
             }
           >
             <Shield size={16} />
-            管理后台
+            {!collapsed && '管理后台'}
           </NavLink>
         )}
 
         {/* 会话搜索 */}
+        {!collapsed && (
         <div className="relative mt-2 shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
           <input
@@ -142,8 +153,10 @@ export function Sidebar() {
             onChange={(e) => handleSearch(e.target.value)}
           />
         </div>
+        )}
 
         {/* 历史会话列表 */}
+        {!collapsed && (
         <div className="flex-1 overflow-y-auto mt-1 min-h-0">
           {displaySessions.length === 0 ? (
             <p className="text-xs text-[#b0b8c1] text-center mt-8">
@@ -175,6 +188,7 @@ export function Sidebar() {
             ))
           )}
         </div>
+        )}
 
         <div className="divider my-1 shrink-0" />
 
@@ -184,9 +198,11 @@ export function Sidebar() {
             <span className="w-6 h-6 rounded-full bg-gray-200 inline-flex items-center justify-center text-xs font-medium text-gray-500 shrink-0">
               {user?.user_name?.charAt(0).toUpperCase() || '?'}
             </span>
+            {!collapsed && (
             <span className="text-xs text-[#81858c] truncate flex-1 ml-2">
               {user?.user_name || '游客'}
             </span>
+            )}
             <button
               onClick={logout}
               className="text-[#9ca3af] hover:text-[#4b5563] transition-colors shrink-0"

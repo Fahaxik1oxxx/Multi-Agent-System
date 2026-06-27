@@ -53,6 +53,14 @@ export function SettingsPage() {
     },
   });
 
+  const { data: config } = useQuery({
+    queryKey: ['user-config'],
+    queryFn: async () => {
+      const res = await userApi.getConfig();
+      return res.data;
+    },
+  });
+
   const saveKeyMutation = useMutation({
     mutationFn: async (key: string) => {
       await userApi.saveApiKey(key);
@@ -197,6 +205,66 @@ export function SettingsPage() {
               </button>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* 模型管理 */}
+      <div className="card bg-base-100 border border-[#e0e4e8] shadow-sm">
+        <div className="card-body">
+          <h2 className="card-title text-[#1d1d1f]">模型管理</h2>
+          <p className="text-sm text-[#81858c]">管理自定义模型和角色映射</p>
+
+          <div className="mt-2">
+            <h3 className="text-sm font-semibold text-[#1d1d1f] mb-2">角色 → 模型映射</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(config?.roles || {}).map(([role, model]) => (
+                <div key={role} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-xs">
+                  <span className="font-medium text-[#1d1d1f]">{role}</span>
+                  <span className="text-[#9ca3af]">→</span>
+                  <span className="text-[#4f8cff]">{model}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <details className="mt-4">
+            <summary className="text-sm text-[#4f8cff] cursor-pointer hover:underline">
+              + 添加自定义模型
+            </summary>
+            <form
+              className="mt-3 space-y-3 p-3 bg-gray-50 rounded-xl"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.target as HTMLFormElement;
+                const key = (form.elements.namedItem('key') as HTMLInputElement).value.trim();
+                const model = (form.elements.namedItem('model') as HTMLInputElement).value.trim();
+                const base_url = (form.elements.namedItem('base_url') as HTMLInputElement).value.trim();
+                const api_key = (form.elements.namedItem('api_key') as HTMLInputElement).value.trim();
+                if (!key || !model || !api_key) {
+                  toast.error('标识、模型名和 API Key 不能为空');
+                  return;
+                }
+                userApi.addCustomModel({ key, model, base_url, api_key }).then(() => {
+                  toast.success('自定义模型已添加');
+                  form.reset();
+                }).catch((err: any) => toast.error(err?.response?.data?.error || '添加失败'));
+              }}
+            >
+              <div className="grid grid-cols-2 gap-2">
+                <input name="key" className="input input-bordered input-sm" placeholder="标识 (如 my-gpt)" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} />
+                <input name="model" className="input input-bordered input-sm" placeholder="模型名 (如 gpt-4o)" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} />
+                <input name="base_url" className="input input-bordered input-sm" placeholder="Base URL (可选)" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} />
+                <input name="api_key" className="input input-bordered input-sm" placeholder="API Key" type="password" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} />
+              </div>
+              <button
+                type="submit"
+                className="btn btn-sm mt-2"
+                style={{ background: 'var(--brand-primary)', color: '#fff', borderRadius: '8px', border: 'none' }}
+              >
+                添加
+              </button>
+            </form>
+          </details>
         </div>
       </div>
     </div>

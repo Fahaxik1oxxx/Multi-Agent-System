@@ -9,6 +9,11 @@ export const userApi = {
   updateProfile: (data: { name?: string; password?: string }) =>
     apiClient.put('/user/profile', data),
 
+  getConfig: () =>
+    apiClient.get<{ roles: Record<string, string>; models: any[]; system_models: any[] }>(
+      '/user/config'
+    ),
+
   getApiKeyStatus: () =>
     apiClient.get<{ has_custom_key: boolean; key_prefix: string }>(
       '/user/api-key'
@@ -18,4 +23,10 @@ export const userApi = {
     apiClient.put('/user/api-key', { api_key }),
 
   deleteApiKey: () => apiClient.delete('/user/api-key'),
+
+  addCustomModel: (data: { key: string; model: string; base_url: string; api_key: string }) =>
+    apiClient.post('/user/custom-models', data),
+
+  deleteCustomModel: (key: string) =>
+    apiClient.delete(`/user/custom-models/${key}`),
 };
