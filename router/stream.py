@@ -96,10 +96,39 @@ def run_workflow_streaming(data: dict, state: SessionState):
     try:
         user_input = data.get("message", "")
         lane_mode = data.get("lane_mode", "auto")
+        project_id = data.get("project_id")
 
-        logger.info("stream | start langgraph pipeline | input=%s | user=%s", user_input[:60], state.user_id)
+        logger.info("stream | start langgraph pipeline | input=%s | user=%s | project=%s", user_input[:60], state.user_id, project_id)
 
         task_type, complexity, need_report = classify(user_input, lane_mode)
+
+        pipeline_config = None
+        graph_source = "default"
+        if project_id and getattr(state, "db", None):
+            import json
+            db = state.db
+            proj = db.get_project(project_id)
+            if proj and proj.get("agent_config"):
+                try:
+                    config = json.loads(proj["agent_config"])
+                    if isinstance(config, dict):
+                        pipeline_config = config.get("pipeline")
+                except Exception as e:
+                    logger.warning("stream | failed to parse agent_config: %s", e)
+
+        if pipeline_config and pipeline_config.get("nodes"):
+            from router.dynamic_graph import build_dynamic_workflow
+            graph = build_dynamic_workflow(pipeline_config)
+            graph_source = "dynamic"
+        else:
+            graph = _stream_graph
+            graph_source = "default"
+
+        logger.info(
+            "stream | graph selected | source=%s | project=%s | pipeline_nodes=%d",
+            graph_source, project_id,
+            len(pipeline_config.get("nodes", [])) if pipeline_config else 0,
+        )
 
         initial_state = StreamWorkflowState(
             session=state,
@@ -118,7 +147,7 @@ def run_workflow_streaming(data: dict, state: SessionState):
             final_output="",
         )
 
-        result_state = _stream_graph.invoke(initial_state)
+        result_state = graph.invoke(initial_state)
 
         final_reply = result_state.get("final_output") or result_state.get("code_or_draft", "")
         thinking = result_state.get("thinking", [])

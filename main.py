@@ -24,6 +24,13 @@ os.environ["PYTHONUTF8"] = "1"
 import logging
 
 logging.getLogger().handlers.clear()
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)-28s | %(levelname)-5s | %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 import warnings
 

@@ -5,6 +5,7 @@
 import asyncio
 import threading
 from dataclasses import dataclass
+from typing import Any
 
 _DONE = object()
 
@@ -16,6 +17,7 @@ class SessionState:
     loop: asyncio.AbstractEventLoop
     created_at: float
     user_id: str = ""
+    db: Any = None
 
 
 def push(state: SessionState, event: dict):

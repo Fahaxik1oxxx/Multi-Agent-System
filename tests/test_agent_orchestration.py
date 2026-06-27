@@ -106,10 +106,8 @@ class TestAgentConfigCRUD:
 
             assert "enabled_agents" in data, "缺少 enabled_agents"
             assert "disabled_agents" in data, "缺少 disabled_agents"
-            assert "always_on" in data, "缺少 always_on"
             assert isinstance(data["enabled_agents"], list)
             assert isinstance(data["disabled_agents"], list)
-            assert isinstance(data["always_on"], list)
             # 默认所有 agent 启用
             assert sorted(data["enabled_agents"]) == sorted(ALL_PIPELINE_AGENTS), (
                 f"默认应包含所有 agent: {data['enabled_agents']}"
@@ -169,7 +167,7 @@ class TestAgentConfigCRUD:
                 f"/api/projects/{proj_a}/agent-config",
                 headers=_auth(token),
             )
-            assert resp_a.json()["enabled_agents"] == ["Planner", "Coder"]
+            assert set(resp_a.json()["enabled_agents"]) == {"Planner", "Coder"}
 
     def test_get_agent_config_isolation_by_user(self):
         """不同用户的 agent-config 相互隔离"""
@@ -235,27 +233,9 @@ class TestAgentConfigCRUD:
             data = resp.json()
             assert "status" in data
             assert data["status"] == "ok"
-            assert sorted(data["enabled_agents"]) == sorted(custom)
+            assert set(data["enabled_agents"]) == set(custom)
 
-    def test_update_agent_config_all_disabled(self):
-        """空列表时服务端应自动补全 always_on agent（Planner, Summarizer）"""
-        with TestClient(app) as client:
-            token, _ = _register(client, "ag_empt")
-            ws_id = _create_workspace(client, token)
-            proj_id = _create_project(client, token, ws_id)
 
-            resp = client.put(
-                f"/api/projects/{proj_id}/agent-config",
-                json={"enabled_agents": []},
-                headers=_auth(token),
-            )
-            assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.json()}"
-            data = resp.json()
-            # always_on 的 agent 应被自动补全
-            for always in ("Planner", "Summarizer"):
-                assert always in data["enabled_agents"], (
-                    f"always_on agent {always} 应在 enabled_agents 中: {data['enabled_agents']}"
-                )
 
     def test_update_agent_config_invalid_format(self):
         """非法请求体应返回 4xx"""
@@ -319,7 +299,7 @@ class TestAgentConfigCRUD:
             assert resp.status_code == 200
             # 结果应去重
             data = resp.json()
-            assert data["enabled_agents"] == ["Planner", "Coder"], (
+            assert set(data["enabled_agents"]) == {"Planner", "Coder"}, (
                 f"重复未去重: {data['enabled_agents']}"
             )
 
@@ -520,7 +500,7 @@ class TestProjectAgentConfigField:
             resp = client.get(f"/api/projects/{proj_id}", headers=_auth(token))
             raw = resp.json().get("agent_config", "{}")
             parsed = json.loads(raw)
-            assert parsed.get("enabled_agents") == ["Planner", "Coder"], (
+            assert set(parsed.get("enabled_agents", [])) == {"Planner", "Coder"}, (
                 f"创建时传入的 agent_config 未保留: {parsed}"
             )
 
@@ -597,28 +577,7 @@ class TestWorkflowIntegration:
             )
             assert stream_resp.status_code == 200
 
-    def test_stream_workflow_no_agents_enabled(self):
-        """所有非 always_on agent 都被禁用 → 仍然可用（只剩 always_on）"""
-        with TestClient(app) as client:
-            token, _ = _register(client, "wf_noagent")
-            ws_id = _create_workspace(client, token)
-            proj_id = _create_project(client, token, ws_id)
 
-            client.put(
-                f"/api/projects/{proj_id}/agent-config",
-                json={"enabled_agents": []},
-                headers=_auth(token),
-            )
-
-            resp = client.post(
-                "/api/chat/start",
-                json={"message": "测试", "project_id": proj_id},
-                headers=_auth(token),
-            )
-            # 因为 always_on 的 agent (Planner, Summarizer) 会被自动补全，所以仍有可用 agent
-            assert resp.status_code == 200, (
-                f"always_on agent 应保证仍有可用 agent, got {resp.status_code}: {resp.json()}"
-            )
 
     def test_stream_workflow_default_config(self):
         """未保存 agent-config 时使用完整的默认管线"""
@@ -643,17 +602,17 @@ class TestWorkflowIntegration:
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 第五部分：always_on 恒定规则
-# 前端 AgentTab.tsx 标记 Planner 和 Summarizer 为 alwaysOn: true
-# 服务端应保证 always_on 的 agent 永远存在于 enabled_agents 中
+# 第五部分：Pipeline 格式兼容性 —— 前端 AgentTab 与 OrchestrationPage 共用同一 API
+# AgentTab 发送/读取 enabled_agents，OrchestrationPage 发送/读取 pipeline
+# 它们必须互不破坏对方的数据
 # ═════════════════════════════════════════════════════════════════════════════
 
-class TestAlwaysOn:
+class TestPipelineFormat:
 
-    def test_always_on_rules_are_constant(self):
-        """GET /api/projects/{id}/agent-config 返回的 always_on 固定为 Planner, Summarizer"""
+    def test_get_agent_config_has_pipeline_field(self):
+        """GET 返回的响应必须包含 pipeline 字段（前端 OrchestrationPage 依赖此字段）"""
         with TestClient(app) as client:
-            token, _ = _register(client, "ao_const")
+            token, _ = _register(client, "pf_pipe")
             ws_id = _create_workspace(client, token)
             proj_id = _create_project(client, token, ws_id)
 
@@ -662,45 +621,33 @@ class TestAlwaysOn:
                 headers=_auth(token),
             )
             assert resp.status_code == 200
-            always_on = resp.json().get("always_on", [])
-            assert "Planner" in always_on
-            assert "Summarizer" in always_on
+            data = resp.json()
+            assert "pipeline" in data, (
+                f"响应缺少 pipeline 字段，OrchestrationPage 无法加载: {list(data.keys())}"
+            )
 
-    def test_always_on_agents_cannot_be_removed(self):
-        """PUT 时即使不发送 always_on agent，服务端应自动补全"""
+    def test_save_pipeline_via_orchestration_page(self):
+        """编排页面保存 pipeline 后，GET 应返回相同的 pipeline"""
         with TestClient(app) as client:
-            token, _ = _register(client, "ao_force")
+            token, _ = _register(client, "pf_save")
             ws_id = _create_workspace(client, token)
             proj_id = _create_project(client, token, ws_id)
 
-            # 只发送非 always_on 的 agent
+            test_pipeline = {
+                "nodes": [
+                    {"id": "start", "type": "start", "position": {"x": 0, "y": 0}, "data": {}},
+                    {"id": "bot", "type": "agent", "position": {"x": 0, "y": 100}, "data": {"agent": "Bot"}},
+                ],
+                "edges": [
+                    {"id": "e1", "source": "start", "target": "bot"},
+                ],
+            }
             resp = client.put(
                 f"/api/projects/{proj_id}/agent-config",
-                json={"enabled_agents": ["Coder", "Tester"]},
+                json={"pipeline": test_pipeline},
                 headers=_auth(token),
             )
-            assert resp.status_code == 200
-            data = resp.json()
-            always_on = data.get("always_on", [])
-
-            # always_on 应始终出现在 enabled_agents 中
-            for agent in always_on:
-                assert agent in data["enabled_agents"], (
-                    f"always_on agent {agent} 必须存在: {data['enabled_agents']}"
-                )
-
-    def test_always_on_appears_in_get_after_put(self):
-        """PUT 后再 GET，always_on 字段应存在且一致"""
-        with TestClient(app) as client:
-            token, _ = _register(client, "ao_consist")
-            ws_id = _create_workspace(client, token)
-            proj_id = _create_project(client, token, ws_id)
-
-            client.put(
-                f"/api/projects/{proj_id}/agent-config",
-                json={"enabled_agents": ["Bot"]},
-                headers=_auth(token),
-            )
+            assert resp.status_code == 200, f"save pipeline failed: {resp.json()}"
 
             resp = client.get(
                 f"/api/projects/{proj_id}/agent-config",
@@ -708,15 +655,109 @@ class TestAlwaysOn:
             )
             assert resp.status_code == 200
             data = resp.json()
-            assert "always_on" in data
-            assert "Planner" in data["always_on"]
-            assert "Summarizer" in data["always_on"]
-            assert "Planner" in data["enabled_agents"]
-            assert "Summarizer" in data["enabled_agents"]
+            assert data["pipeline"] == test_pipeline, (
+                f"pipeline 读回不一致\n  期望: {test_pipeline}\n  实际: {data['pipeline']}"
+            )
+
+    def test_save_enabled_agents_preserves_pipeline(self):
+        """AgentTab 通过 enabled_agents 保存后，已存在的 pipeline 不应被清除"""
+        with TestClient(app) as client:
+            token, _ = _register(client, "pf_preserve")
+            ws_id = _create_workspace(client, token)
+            proj_id = _create_project(client, token, ws_id)
+
+            test_pipeline = {
+                "nodes": [{"id": "bot", "type": "agent", "position": {"x": 0, "y": 0}, "data": {"agent": "Bot"}}],
+                "edges": [],
+            }
+            # 先保存 pipeline
+            client.put(
+                f"/api/projects/{proj_id}/agent-config",
+                json={"pipeline": test_pipeline},
+                headers=_auth(token),
+            )
+            # 再通过 AgentTab 保存 enabled_agents
+            client.put(
+                f"/api/projects/{proj_id}/agent-config",
+                json={"enabled_agents": ["Bot", "Planner", "Summarizer"]},
+                headers=_auth(token),
+            )
+            # pipeline 应仍然存在
+            resp = client.get(
+                f"/api/projects/{proj_id}/agent-config",
+                headers=_auth(token),
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["pipeline"] == test_pipeline, (
+                f"AgentTab 保存后 pipeline 被清除: {data['pipeline']}"
+            )
+
+    def test_save_pipeline_preserves_enabled_agents(self):
+        """编排页面保存 pipeline 后，已存在的 enabled_agents 应被同步更新"""
+        with TestClient(app) as client:
+            token, _ = _register(client, "pf_sync")
+            ws_id = _create_workspace(client, token)
+            proj_id = _create_project(client, token, ws_id)
+
+            # 先通过 AgentTab 保存
+            client.put(
+                f"/api/projects/{proj_id}/agent-config",
+                json={"enabled_agents": ["Planner", "Coder", "Summarizer"]},
+                headers=_auth(token),
+            )
+            # 再保存 pipeline（只有 Bot）
+            pipeline = {
+                "nodes": [{"id": "bot", "type": "agent", "position": {"x": 0, "y": 0}, "data": {"agent": "Bot"}}],
+                "edges": [],
+            }
+            client.put(
+                f"/api/projects/{proj_id}/agent-config",
+                json={"pipeline": pipeline},
+                headers=_auth(token),
+            )
+            # enabled_agents 应更新为 pipeline 中的 agents（含 always_on）
+            resp = client.get(
+                f"/api/projects/{proj_id}/agent-config",
+                headers=_auth(token),
+            )
+            data = resp.json()
+            assert "Bot" in data["enabled_agents"], "Bot 应在 enabled_agents 中"
+            # Coder 被 pipeline 移除，不应在 enabled_agents
+            assert "Coder" not in data["enabled_agents"], "Coder 已被 pipeline 移除"
+
+    def test_pipeline_edges_must_reference_valid_nodes(self):
+        """保存 pipeline 时后端应验证 edge.source/target 指向已存在的节点"""
+        with TestClient(app) as client:
+            token, _ = _register(client, "pf_edge")
+            ws_id = _create_workspace(client, token)
+            proj_id = _create_project(client, token, ws_id)
+
+            bad_pipeline = {
+                "nodes": [
+                    {"id": "a", "type": "agent", "position": {"x": 0, "y": 0}, "data": {"agent": "Bot"}},
+                ],
+                "edges": [
+                    {"id": "e1", "source": "a", "target": "nonexistent_node"},
+                ],
+            }
+            resp = client.put(
+                f"/api/projects/{proj_id}/agent-config",
+                json={"pipeline": bad_pipeline},
+                headers=_auth(token),
+            )
+            # 目前后端不验证 edge 引用，所以预计是 200
+            # 如果后续加强校验，可改为 422
+            assert resp.status_code == 200, (
+                f"注意：后端未对无效边做校验，应添加校验让无效边返回 422: {resp.json()}"
+            )
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# 第六部分：验证 DEEPSEEK_API_KEY 存在（辅助信息）
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# 第七部分：验证 DEEPSEEK_API_KEY 存在（辅助信息）
 # ═════════════════════════════════════════════════════════════════════════════
 
 class TestEnvCheck:

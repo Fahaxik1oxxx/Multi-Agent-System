@@ -512,7 +512,7 @@ class Database:
     def list_projects(self, workspace_id: str) -> list[dict]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT id, name, description, created_by, created_at "
+                "SELECT id, name, description, agent_config, created_by, created_at "
                 "FROM projects WHERE workspace_id = ? "
                 "ORDER BY created_at DESC",
                 (workspace_id,),

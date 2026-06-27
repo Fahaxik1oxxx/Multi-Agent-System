@@ -3,10 +3,13 @@
 """
 
 import json
+import logging
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
 from user.helpers import _get_db, require_auth, require_workspace_role, require_admin
+
+logger = logging.getLogger(__name__)
 
 workspace_router = APIRouter()
 project_router = APIRouter()
@@ -143,7 +146,47 @@ async def create_project(
     if not name:
         return JSONResponse({"error": "项目名称不能为空"}, status_code=400)
     description = (data.get("description") or "").strip()
-    pid = _get_db(request).create_project(workspace_id, name, description, member["user_id"])
+    
+    db = _get_db(request)
+    pid = db.create_project(workspace_id, name, description, member["user_id"])
+    
+    agent_config = data.get("agent_config")
+    if agent_config is not None:
+        if isinstance(agent_config, str):
+            try:
+                parsed_cfg = json.loads(agent_config)
+                if isinstance(parsed_cfg, list):
+                    parsed_cfg = {"enabled_agents": parsed_cfg}
+                
+                if "enabled_agents" in parsed_cfg:
+                    enabled = parsed_cfg["enabled_agents"]
+                    valid_agents = []
+                    seen = set()
+                    for a in enabled:
+                        if a in ALL_PIPELINE_AGENTS and a not in seen:
+                            valid_agents.append(a)
+                            seen.add(a)
+                    parsed_cfg["enabled_agents"] = valid_agents
+                agent_config_str = json.dumps(parsed_cfg, ensure_ascii=False)
+            except:
+                agent_config_str = agent_config
+        else:
+            if isinstance(agent_config, list):
+                agent_config = {"enabled_agents": agent_config}
+            
+            if "enabled_agents" in agent_config:
+                enabled = agent_config["enabled_agents"]
+                valid_agents = []
+                seen = set()
+                for a in enabled:
+                    if a in ALL_PIPELINE_AGENTS and a not in seen:
+                        valid_agents.append(a)
+                        seen.add(a)
+                agent_config["enabled_agents"] = valid_agents
+            agent_config_str = json.dumps(agent_config, ensure_ascii=False)
+            
+        db.update_project(pid, agent_config=agent_config_str)
+            
     return JSONResponse({"id": pid, "name": name, "status": "ok"}, status_code=201)
 
 
@@ -179,6 +222,129 @@ async def delete_project(
         return JSONResponse({"error": "无权删除"}, status_code=403)
     db.delete_project(project_id)
     return JSONResponse({"status": "ok"})
+
+
+ALL_PIPELINE_AGENTS = {"Planner", "Retriever", "Coder", "Writer", "Executor", "Tester", "Summarizer", "Bot"}
+
+
+@project_router.get("/projects/{project_id}/agent-config")
+async def get_agent_config(
+    request: Request,
+    project_id: str,
+    user: dict = Depends(require_auth),
+):
+    db = _get_db(request)
+    proj = db.get_project(project_id)
+    if not proj:
+        return JSONResponse({"error": "项目不存在"}, status_code=404)
+    role = db.get_member_role(proj["workspace_id"], user["user_id"])
+    if role is None and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "无权访问"}, status_code=403)
+    
+    agent_config_str = proj.get("agent_config", "{}")
+    try:
+        config = json.loads(agent_config_str)
+        if isinstance(config, list):
+            config = {"enabled_agents": config}
+    except:
+        config = {}
+        
+    enabled_agents = config.get("enabled_agents", list(ALL_PIPELINE_AGENTS))
+    disabled_agents = [a for a in ALL_PIPELINE_AGENTS if a not in enabled_agents]
+
+    saved_pipeline = config.get("pipeline", {})
+    logger.info(
+        "agent-config | loaded | project=%s | user=%s | enabled_agents=%s | has_pipeline=%s",
+        project_id, user["user_id"], enabled_agents,
+        "yes" if saved_pipeline else "no",
+    )
+
+    return JSONResponse({
+        "pipeline": config.get("pipeline", {}),
+        "enabled_agents": enabled_agents,
+        "disabled_agents": disabled_agents
+    })
+
+
+@project_router.put("/projects/{project_id}/agent-config")
+async def update_agent_config(
+    request: Request,
+    project_id: str,
+    user: dict = Depends(require_auth),
+):
+    db = _get_db(request)
+    proj = db.get_project(project_id)
+    if not proj:
+        return JSONResponse({"error": "项目不存在"}, status_code=404)
+    role = db.get_member_role(proj["workspace_id"], user["user_id"])
+    if role not in ("owner", "member") and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "无权修改"}, status_code=403)
+        
+    try:
+        data = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON format"}, status_code=422)
+    
+    agent_config_str = proj.get("agent_config", "{}")
+    try:
+        config = json.loads(agent_config_str)
+        if isinstance(config, list):
+            config = {"enabled_agents": config}
+    except:
+        config = {}
+
+    if "enabled_agents" not in data and "pipeline" not in data:
+        return JSONResponse({"error": "缺少 enabled_agents 或 pipeline 字段"}, status_code=422)
+
+    if "enabled_agents" in data:
+        enabled = data["enabled_agents"]
+        if not isinstance(enabled, list):
+            return JSONResponse({"error": "enabled_agents must be a list"}, status_code=422)
+            
+        valid_agents = []
+        seen = set()
+        for a in enabled:
+            if a not in ALL_PIPELINE_AGENTS:
+                return JSONResponse({"error": f"无效的 agent: {a}"}, status_code=422)
+            if a not in seen:
+                valid_agents.append(a)
+                seen.add(a)
+                
+        config["enabled_agents"] = valid_agents
+
+    if "pipeline" in data:
+        pipeline = data["pipeline"]
+        if not isinstance(pipeline, dict) or "nodes" not in pipeline:
+            return JSONResponse({"error": "Invalid pipeline format"}, status_code=422)
+            
+        config["pipeline"] = pipeline
+        
+        agent_nodes = [n.get("data", {}).get("agent") for n in pipeline.get("nodes", []) if n.get("type") == "agent"]
+        enabled = [a for a in agent_nodes if a in ALL_PIPELINE_AGENTS]
+        
+        valid_agents = []
+        seen = set()
+        for a in enabled:
+            if a not in seen:
+                valid_agents.append(a)
+                seen.add(a)
+        config["enabled_agents"] = valid_agents
+
+    saved_pipeline = config.get("pipeline", {})
+    pipeline_nodes = len(saved_pipeline.get("nodes", [])) if saved_pipeline else 0
+    pipeline_edges = len(saved_pipeline.get("edges", [])) if saved_pipeline else 0
+    logger.info(
+        "agent-config | saved | project=%s | user=%s | enabled_agents=%s | has_pipeline=%s | pipeline_nodes=%d | pipeline_edges=%d",
+        project_id, user["user_id"], config.get("enabled_agents", []),
+        "yes" if saved_pipeline else "no", pipeline_nodes, pipeline_edges,
+    )
+
+    db.update_project(project_id, agent_config=json.dumps(config, ensure_ascii=False))
+    return JSONResponse({
+        "status": "ok",
+        "enabled_agents": config.get("enabled_agents", []),
+        "disabled_agents": [a for a in ALL_PIPELINE_AGENTS if a not in config.get("enabled_agents", [])]
+    })
 
 
 # ──── 管理后台 ────

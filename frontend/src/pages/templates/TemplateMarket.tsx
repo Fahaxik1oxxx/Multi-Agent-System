@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { workspacesApi } from '@/api/workspaces';
 import { projectsApi } from '@/api/projects';
 import { TEMPLATES, type Template } from '@/data/templates';
+import { DEFAULT_PIPELINE } from '@/pages/project/OrchestrationPage';
 import { toast } from 'sonner';
 
 export function TemplateMarket() {
@@ -41,7 +42,18 @@ export function TemplateMarket() {
       const projectId = projectRes.data.id;
 
       // 2. Update agent config
-      await projectsApi.updateAgentConfig(projectId, selectedTemplate.agentConfig);
+      // Filter the DEFAULT_PIPELINE to only include the agents in the template,
+      // keeping start, routers, and tools.
+      const newPipeline = {
+        nodes: DEFAULT_PIPELINE.nodes.filter(n => {
+          if (n.type === 'agent' && n.data.agent) {
+            return selectedTemplate.agentConfig.includes(n.data.agent);
+          }
+          return true; // keep start, router, etc.
+        }),
+        edges: DEFAULT_PIPELINE.edges
+      };
+      await projectsApi.updateAgentConfig(projectId, newPipeline);
 
       toast.success('项目创建成功');
       dialogRef.current?.close();

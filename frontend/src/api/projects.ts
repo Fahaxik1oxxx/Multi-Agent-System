@@ -16,8 +16,8 @@ export const projectsApi = {
   delete: (id: string) => apiClient.delete(`/projects/${id}`),
 
   getAgentConfig: (projectId: string) =>
-    apiClient.get<{ enabled_agents: string[]; disabled_agents: string[]; always_on: string[] }>(`/projects/${projectId}/agent-config`),
+    apiClient.get<{ pipeline: any; enabled_agents: string[]; disabled_agents: string[]; always_on: string[] }>(`/projects/${projectId}/agent-config`),
 
-  updateAgentConfig: (projectId: string, enabled_agents: string[]) =>
-    apiClient.put<{ status: string; enabled_agents: string[] }>(`/projects/${projectId}/agent-config`, { enabled_agents }),
+  updateAgentConfig: (projectId: string, data: any) =>
+    apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, Array.isArray(data) ? { enabled_agents: data } : { pipeline: data }),
 };

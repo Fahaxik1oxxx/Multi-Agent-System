@@ -158,7 +158,7 @@ export function ChatPage() {
     setMessages([...newMessages, assistMsg]);
 
     try {
-      await startStream(text, laneMode);
+      await startStream(text, laneMode, projectId);
     } catch {
       // handled by streaming.error
     }
@@ -232,7 +232,7 @@ export function ChatPage() {
     const assistMsg: Message = { role: 'assistant', content: '', loading: true };
     setMessages([...kept, userMsg, assistMsg]);
     setInputValue('');
-    startStream(precedingUser.content, laneMode).catch(() => {});
+    startStream(precedingUser.content, laneMode, projectId).catch(() => {});
   }, [messages, streaming.isStreaming, laneMode, startStream]);
 
   // Generate report from thinking data
@@ -331,7 +331,7 @@ export function ChatPage() {
     setEditingIdx(null);
     setEditValue('');
     setInputValue('');
-    startStream(editValue.trim(), laneMode).catch(() => {});
+    startStream(editValue.trim(), laneMode, projectId).catch(() => {});
   }, [editValue, editingIdx, messages, laneMode, startStream]);
 
   const handleExportFromPanel = useCallback(() => {
