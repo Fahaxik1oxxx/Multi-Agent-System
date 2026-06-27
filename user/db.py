@@ -13,12 +13,13 @@ from contextlib import contextmanager
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 4
+    TARGET_SCHEMA_VERSION = 5
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
     # 3 → 新增: workspaces, workspace_members, projects + is_admin 列
     # 4 → 新增: eval_logs
+    # 5 → 新增: organizations, org_members, org_channels, org_messages, org_todos
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -163,6 +164,54 @@ class Database:
                 );
                 CREATE INDEX IF NOT EXISTS idx_eval_project ON eval_logs(project_id);
                 CREATE INDEX IF NOT EXISTS idx_eval_created ON eval_logs(created_at);
+            """)
+        elif version == 5:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS organizations (
+                    id          TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    invite_code TEXT NOT NULL UNIQUE,
+                    owner_id    TEXT NOT NULL,
+                    created_at  TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (owner_id) REFERENCES users(id)
+                );
+                CREATE TABLE IF NOT EXISTS org_members (
+                    org_id    TEXT NOT NULL,
+                    user_id   TEXT NOT NULL,
+                    role      TEXT NOT NULL DEFAULT 'member',
+                    joined_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    PRIMARY KEY (org_id, user_id),
+                    FOREIGN KEY (org_id) REFERENCES organizations(id),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                CREATE TABLE IF NOT EXISTS org_channels (
+                    id      TEXT PRIMARY KEY,
+                    org_id  TEXT NOT NULL,
+                    name    TEXT NOT NULL DEFAULT 'general',
+                    FOREIGN KEY (org_id) REFERENCES organizations(id)
+                );
+                CREATE TABLE IF NOT EXISTS org_messages (
+                    id         TEXT PRIMARY KEY,
+                    channel_id TEXT NOT NULL,
+                    user_id    TEXT NOT NULL,
+                    content    TEXT NOT NULL,
+                    is_agent   INTEGER DEFAULT 0,
+                    created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (channel_id) REFERENCES org_channels(id),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                );
+                CREATE TABLE IF NOT EXISTS org_todos (
+                    id          TEXT PRIMARY KEY,
+                    org_id      TEXT NOT NULL,
+                    content     TEXT NOT NULL,
+                    assignee_id TEXT,
+                    completed   INTEGER DEFAULT 0,
+                    created_by  TEXT NOT NULL,
+                    created_at  TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (org_id) REFERENCES organizations(id),
+                    FOREIGN KEY (assignee_id) REFERENCES users(id)
+                );
             """)
         else:
             raise ValueError(f"未知的迁移版本: {version}")
@@ -629,6 +678,165 @@ class Database:
         with self._conn() as conn:
             cur = conn.execute("DELETE FROM user_configs WHERE user_id = ?", (user_id,))
             return cur.rowcount > 0
+
+    # ── 组织 ──
+
+    def create_organization(self, name: str, description: str, owner_id: str) -> str:
+        import secrets, string
+        oid = str(uuid.uuid4())
+        code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO organizations (id, name, description, invite_code, owner_id) VALUES (?,?,?,?,?)",
+                (oid, name, description, code, owner_id),
+            )
+            conn.execute(
+                "INSERT INTO org_members (org_id, user_id, role) VALUES (?,?,?)",
+                (oid, owner_id, 'owner'),
+            )
+        return oid
+
+    def list_organizations(self, user_id: str) -> list:
+        with self._conn() as conn:
+            rows = conn.execute("""
+                SELECT o.*, om.role as my_role,
+                       (SELECT COUNT(*) FROM org_members WHERE org_id = o.id) as member_count
+                FROM organizations o
+                JOIN org_members om ON o.id = om.org_id AND om.user_id = ?
+                ORDER BY o.created_at DESC
+            """, (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_organization(self, org_id: str):
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_org_by_invite(self, code: str):
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM organizations WHERE invite_code = ?", (code,)).fetchone()
+        return dict(row) if row else None
+
+    def join_organization(self, org_id: str, user_id: str, role: str = 'member') -> bool:
+        with self._conn() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM org_members WHERE org_id = ? AND user_id = ?", (org_id, user_id)
+            ).fetchone()
+            if existing:
+                return False
+            conn.execute(
+                "INSERT INTO org_members (org_id, user_id, role) VALUES (?,?,?)",
+                (org_id, user_id, role),
+            )
+        return True
+
+    def list_org_members(self, org_id: str) -> list:
+        with self._conn() as conn:
+            rows = conn.execute("""
+                SELECT om.*, u.name as user_name
+                FROM org_members om JOIN users u ON om.user_id = u.id
+                WHERE om.org_id = ?
+            """, (org_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_org_member_role(self, org_id: str, user_id: str):
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT role FROM org_members WHERE org_id = ? AND user_id = ?",
+                (org_id, user_id),
+            ).fetchone()
+        return row["role"] if row else None
+
+    def remove_org_member(self, org_id: str, user_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "DELETE FROM org_members WHERE org_id = ? AND user_id = ? AND role != 'owner'",
+                (org_id, user_id),
+            )
+            return cur.rowcount > 0
+
+    def delete_organization(self, org_id: str) -> bool:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM org_messages WHERE channel_id IN (SELECT id FROM org_channels WHERE org_id = ?)", (org_id,))
+            conn.execute("DELETE FROM org_channels WHERE org_id = ?", (org_id,))
+            conn.execute("DELETE FROM org_todos WHERE org_id = ?", (org_id,))
+            conn.execute("DELETE FROM org_members WHERE org_id = ?", (org_id,))
+            conn.execute("DELETE FROM organizations WHERE id = ?", (org_id,))
+        return True
+
+    def create_channel(self, org_id: str, name: str) -> str:
+        cid = str(uuid.uuid4())
+        with self._conn() as conn:
+            conn.execute("INSERT INTO org_channels (id, org_id, name) VALUES (?,?,?)", (cid, org_id, name))
+        return cid
+
+    def list_channels(self, org_id: str) -> list:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM org_channels WHERE org_id = ? ORDER BY name", (org_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def create_message(self, channel_id: str, user_id: str, content: str, is_agent: int = 0) -> str:
+        mid = str(uuid.uuid4())
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO org_messages (id, channel_id, user_id, content, is_agent) VALUES (?,?,?,?,?)",
+                (mid, channel_id, user_id, content, is_agent),
+            )
+        return mid
+
+    def list_messages(self, channel_id: str, limit: int = 50, before: str | None = None) -> list:
+        with self._conn() as conn:
+            if before:
+                rows = conn.execute("""
+                    SELECT m.*, u.name as user_name
+                    FROM org_messages m JOIN users u ON m.user_id = u.id
+                    WHERE m.channel_id = ? AND m.created_at < ?
+                    ORDER BY m.created_at DESC LIMIT ?
+                """, (channel_id, before, limit)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT m.*, u.name as user_name
+                    FROM org_messages m JOIN users u ON m.user_id = u.id
+                    WHERE m.channel_id = ?
+                    ORDER BY m.created_at DESC LIMIT ?
+                """, (channel_id, limit)).fetchall()
+        return [dict(r) for r in reversed(rows)]
+
+    def create_todo(self, org_id: str, content: str, created_by: str, assignee_id: str | None = None) -> str:
+        tid = str(uuid.uuid4())
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO org_todos (id, org_id, content, assignee_id, created_by) VALUES (?,?,?,?,?)",
+                (tid, org_id, content, assignee_id, created_by),
+            )
+        return tid
+
+    def list_todos(self, org_id: str) -> list:
+        with self._conn() as conn:
+            rows = conn.execute("""
+                SELECT t.*, u.name as assignee_name
+                FROM org_todos t LEFT JOIN users u ON t.assignee_id = u.id
+                WHERE t.org_id = ?
+                ORDER BY t.completed ASC, t.created_at DESC
+            """, (org_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def update_todo(self, todo_id: str, completed: int | None = None, content: str | None = None) -> bool:
+        with self._conn() as conn:
+            if completed is not None and content is not None:
+                conn.execute("UPDATE org_todos SET completed=?, content=? WHERE id=?", (completed, content, todo_id))
+            elif completed is not None:
+                conn.execute("UPDATE org_todos SET completed=? WHERE id=?", (completed, todo_id))
+            elif content is not None:
+                conn.execute("UPDATE org_todos SET content=? WHERE id=?", (content, todo_id))
+            else:
+                return False
+        return True
+
+    def get_user_name(self, user_id: str) -> str:
+        with self._conn() as conn:
+            row = conn.execute("SELECT name FROM users WHERE id = ?", (user_id,)).fetchone()
+        return row["name"] if row else "未知用户"
 
     def dump_all(self) -> str:
         """返回数据库全部内容的格式化字符串，用于实时观察。"""
