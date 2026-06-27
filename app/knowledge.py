@@ -88,6 +88,11 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
         contents = await file.read()
         with open(doc_path, "wb") as f:
             f.write(contents)
+        # 同时复制到 coding/ 目录供 Agent 的 read_file 工具读取
+        import shutil
+        coding_dir = os.path.join(_BASE, "coding")
+        os.makedirs(coding_dir, exist_ok=True)
+        shutil.copy2(doc_path, os.path.join(coding_dir, safe_name))
         return JSONResponse({"success": True, "filename": safe_name})
 
 

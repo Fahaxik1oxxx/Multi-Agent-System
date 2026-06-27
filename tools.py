@@ -286,6 +286,28 @@ def ocr_image(image_path: str, language: str = "chi_sim+eng") -> str:
         return f"[OCR错误] {e}"
 
 
+# ===== 网络搜索 =====
+
+@tool
+def web_search(query: str, max_results: int = 5) -> str:
+    """搜索网络，返回前 max_results 条结果的标题和摘要。
+    参数 query: 搜索关键词, max_results: 返回结果数（默认5，最多10）"""
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=min(max_results, 10)))
+        if not results:
+            return "未找到相关结果。请尝试更换搜索词。"
+        lines = []
+        for i, r in enumerate(results, 1):
+            lines.append(f"{i}. **{r['title']}**\n   {r['body'][:200]}\n   {r['href']}")
+        return "\n\n".join(lines)
+    except ImportError:
+        return "[错误] duckduckgo_search 未安装"
+    except Exception as e:
+        return f"[搜索失败] {e}"
+
+
 # ===== 工具字典 =====
 
 ALL_TOOLS = {
@@ -296,4 +318,5 @@ ALL_TOOLS = {
     "analyze_data": analyze_data,
     "visualize_data": visualize_data,
     "ocr_image": ocr_image,
+    "web_search": web_search,
 }
