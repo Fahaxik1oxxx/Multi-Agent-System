@@ -240,9 +240,7 @@ def tester_node(state: StreamWorkflowState) -> dict:
     prompt += "请审阅上述产出是否满足用户原始需求。"
     session_prompt = f"{SYSTEM_PROMPTS['Tester']}\n\n{prompt}"
     content = _stream_llm("Tester", session_prompt, session, temperature=0.2)
-    new_fix_count = state.get("fix_count", 0)
-    if "✅" in content:
-        new_fix_count += 1
+    new_fix_count = state.get("fix_count", 0) + 1
     return {"test_result": content, "fix_count": new_fix_count,
             "thinking": [{"name": "Tester", "content": content}]}
 

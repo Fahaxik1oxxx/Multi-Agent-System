@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useStreamChat } from '@/hooks/useStreamChat';
+import { Markdown } from '@/components/shared/Markdown';
+import { sessionsApi } from '@/api/sessions';
+import { knowledgeApi } from '@/api/knowledge';
+import { generateReportApi } from '@/api/client';
+import { toast } from 'sonner';
 
 // ── Agent constants ──
 const ICONS: Record<string, string> = {
@@ -34,18 +39,108 @@ export function ChatPage() {
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<{ name: string; status: 'uploading' | 'done' | 'error' }[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [reportContent, setReportContent] = useState<string | null>(null);
+  const reportDialogRef = useRef<HTMLDialogElement>(null);
 
-  // Auto-scroll
+  // Listen for load-session event (from sidebar clicking a history item)
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    const handler = (e: Event) => {
+      const sid = (e as CustomEvent).detail;
+      if (!sid) return;
+      setSessionId(sid);
+      sessionIdRef.current = sid;
+      // Fetch session messages
+      sessionsApi.get(sid).then((res) => {
+        const msgs: Message[] = (res.data.messages || []).map((m: any) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          thinking: m.thinking,
+          thinkingOrder: m.thinkingOrder,
+          taskType: m.taskType,
+        }));
+        setMessages(msgs);
+        setInputValue('');
+        setEditingIdx(null);
+        setEditValue('');
+      }).catch(() => {
+        // session not found
+      });
+    };
+    window.addEventListener('load-session', handler);
+    return () => window.removeEventListener('load-session', handler);
+  }, []);
+
+  // Auto-save messages after streaming completes or messages change
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    // Don't save while streaming
+    if (streaming.isStreaming) return;
+    // Debounce save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      const sid = sessionIdRef.current || String(Date.now());
+      if (!sessionIdRef.current) {
+        sessionIdRef.current = sid;
+        setSessionId(sid);
+      }
+      const msgData = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.thinking ? { thinking: m.thinking } : {}),
+        ...(m.thinkingOrder ? { thinkingOrder: m.thinkingOrder } : {}),
+        ...(m.taskType ? { taskType: m.taskType } : {}),
+      }));
+      const title = messages.find((m) => m.role === 'user')?.content?.slice(0, 50) || '新对话';
+      sessionsApi.save({ id: sid, title, messages: msgData }).catch(() => {});
+      // Notify sidebar to refresh
+      window.dispatchEvent(new CustomEvent('session-saved'));
+    }, 500);
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [messages, streaming.isStreaming]);
+
+  // Listen for "开启新对话" from sidebar
+  useEffect(() => {
+    const handler = () => {
+      setMessages([]);
+      setInputValue('');
+      setEditingIdx(null);
+      setEditValue('');
+      setAttachedFiles([]);
+      setSessionId(null);
+      sessionIdRef.current = null;
+    };
+    window.addEventListener('new-chat', handler);
+    return () => window.removeEventListener('new-chat', handler);
+  }, []);
+
+  // Smart scroll: 只在用户距底部 60px 内时自动滚动
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+    if (isNearBottom) {
+      el.scrollTop = el.scrollHeight;
     }
   }, [messages, streaming.thinking, streaming.reply]);
 
   // Send message
   const handleSend = useCallback(async (message?: string) => {
-    const text = (message ?? inputValue).trim();
+    let text = (message ?? inputValue).trim();
     if (!text || streaming.isStreaming) return;
+
+    // 附带已上传的文件名
+    const doneFiles = attachedFiles.filter((f) => f.status === 'done').map((f) => f.name);
+    if (doneFiles.length > 0) {
+      text = `[附件: ${doneFiles.join(', ')}]\n${text}`;
+    }
+    setAttachedFiles([]);
 
     const userMsg: Message = { role: 'user', content: text };
     const newMessages = [...messages, userMsg];
@@ -62,6 +157,12 @@ export function ChatPage() {
     }
   }, [inputValue, messages, streaming.isStreaming, laneMode, startStream]);
 
+  // Helper: extract base name from potentially suffixed key
+  const baseName = (key: string) => {
+    const idx = key.lastIndexOf('\x00');
+    return idx === -1 ? key : key.slice(0, idx);
+  };
+
   // When streaming completes, update last assistant message
   useEffect(() => {
     if (!streaming.isStreaming && (streaming.reply || streaming.error)) {
@@ -72,8 +173,8 @@ export function ChatPage() {
           updated[lastIdx] = {
             role: 'assistant',
             content: streaming.reply || '',
-            thinking: Array.from(streaming.thinking.entries()).map(([name, c]) => ({ name, content: c })),
-            thinkingOrder: streaming.thinkingOrder,
+            thinking: Array.from(streaming.thinking.entries()).map(([key, c]) => ({ name: baseName(key), content: c })),
+            thinkingOrder: streaming.thinkingOrder.map(baseName),
             error: streaming.error || undefined,
             loading: false,
           };
@@ -83,13 +184,80 @@ export function ChatPage() {
     }
   }, [streaming.isStreaming, streaming.reply, streaming.error, streaming.thinking, streaming.thinkingOrder]);
 
-  // Regenerate
+  // Fix abort: 当流式停止但最后一条消息还卡在loading时，解除加载态
+  useEffect(() => {
+    if (!streaming.isStreaming && messages.length > 0) {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last.role === 'assistant' && last.loading) {
+          updated[updated.length - 1] = {
+            ...last,
+            content: last.content || streaming.reply || '（已中断）',
+            loading: false,
+          };
+        }
+        return updated;
+      });
+    }
+  }, [streaming.isStreaming]);
+
+  // Regenerate: 删除最后一条 assistant 消息，重新发送上一条用户消息
   const handleRegenerate = useCallback(() => {
-    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-    if (!lastUser) return;
-    setMessages((prev) => prev.filter((m) => m.role !== 'assistant' || prev.indexOf(m) < prev.findLastIndex((x) => x.role === 'assistant')));
-    handleSend(lastUser.content);
-  }, [messages, handleSend]);
+    if (streaming.isStreaming) return;
+    // 找到最后一条 assistant 消息的索引
+    let lastAssistantIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') {
+        lastAssistantIdx = i;
+        break;
+      }
+    }
+    if (lastAssistantIdx === -1) return;
+
+    // 找到它前面的最后一条 user 消息
+    const precedingUser = messages.slice(0, lastAssistantIdx).reverse().find(m => m.role === 'user');
+    if (!precedingUser) return;
+
+    // 手动构造消息列表，不依赖 handleSend 的闭包
+    const kept = messages.slice(0, lastAssistantIdx);
+    const userMsg: Message = { role: 'user', content: precedingUser.content };
+    const assistMsg: Message = { role: 'assistant', content: '', loading: true };
+    setMessages([...kept, userMsg, assistMsg]);
+    setInputValue('');
+    startStream(precedingUser.content, laneMode).catch(() => {});
+  }, [messages, streaming.isStreaming, laneMode, startStream]);
+
+  // Generate report from thinking data
+  const handleGenerateReport = useCallback(async (thinking?: Array<{ name: string; content: string }>) => {
+    if (!thinking || thinking.length === 0) {
+      toast.error('无可用的思考记录');
+      return;
+    }
+    try {
+      const result = await generateReportApi(thinking);
+      setReportContent(result.content || '报告生成失败');
+      // 小延迟确保 dialog 已渲染
+      setTimeout(() => reportDialogRef.current?.showModal(), 50);
+    } catch {
+      toast.error('报告生成失败');
+    }
+  }, []);
+
+  const downloadReport = useCallback(() => {
+    if (!reportContent) return;
+    const blob = new Blob([reportContent], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report_${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    reportDialogRef.current?.close();
+    toast.success('报告已下载');
+  }, [reportContent]);
 
   // Edit & resend
   const startEdit = useCallback((idx: number, content: string) => {
@@ -97,18 +265,83 @@ export function ChatPage() {
     setEditValue(content);
   }, []);
 
+  // File upload handlers
+  const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList);
+    for (const file of files) {
+      const name = file.name;
+      setAttachedFiles((prev) => [...prev, { name, status: 'uploading' }]);
+      try {
+        await knowledgeApi.upload(file);
+        setAttachedFiles((prev) => prev.map((f) => f.name === name ? { ...f, status: 'done' } : f));
+      } catch {
+        setAttachedFiles((prev) => prev.map((f) => f.name === name ? { ...f, status: 'error' } : f));
+        toast.error(`上传失败: ${name}`);
+      }
+    }
+  }, []);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      uploadFiles(e.target.files);
+      e.target.value = '';
+    }
+  }, [uploadFiles]);
+
+  const removeFileTag = useCallback((name: string) => {
+    setAttachedFiles((prev) => prev.filter((f) => f.name !== name));
+  }, []);
+
+  // Drag & drop
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files?.length) {
+      uploadFiles(e.dataTransfer.files);
+    }
+  }, [uploadFiles]);
+
   const submitEdit = useCallback(() => {
-    if (!editValue.trim()) return;
-    setMessages((prev) => prev.slice(0, editingIdx!));
+    if (!editValue.trim() || editingIdx === null) return;
+    // 截断到编辑的消息之前，然后手动添加编辑后的消息+assistant骨架
+    const kept = messages.slice(0, editingIdx);
+    const userMsg: Message = { role: 'user', content: editValue.trim() };
+    const assistMsg: Message = { role: 'assistant', content: '', loading: true };
+    setMessages([...kept, userMsg, assistMsg]);
     setEditingIdx(null);
     setEditValue('');
-    handleSend(editValue.trim());
-  }, [editValue, editingIdx, handleSend]);
+    setInputValue('');
+    startStream(editValue.trim(), laneMode).catch(() => {});
+  }, [editValue, editingIdx, messages, laneMode, startStream]);
 
   return (
+    <>
     <div className="flex flex-col h-full" style={{ background: 'var(--bg-chat)' }}>
       {/* Messages */}
-      <div ref={chatRef} className="flex-1 overflow-y-auto" id="chat-messages">
+      {/* Drag overlay */}
+      {isDragging && <div className="drag-overlay show">释放文件以上传到知识库</div>}
+
+      <div
+        ref={chatRef}
+        className="flex-1 overflow-y-auto"
+        id="chat-messages"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {messages.length === 0 && (
           <div className="chat-welcome">
             <h2 className="chat-welcome-title">多智能体协作系统</h2>
@@ -125,7 +358,7 @@ export function ChatPage() {
                   key={val}
                   className="flex-1 max-w-[150px] p-4 rounded-[14px] border-1.5 border-[#e0e4e8] bg-white cursor-pointer text-center select-none transition-all hover:border-[#4f8cff] hover:shadow-[0_2px_12px_rgba(79,140,255,0.1)]"
                   style={laneMode === val ? { borderColor: 'var(--brand-primary)', background: 'rgba(79,140,255,0.04)', boxShadow: '0 2px 12px rgba(79,140,255,0.12)' } : {}}
-                  onClick={() => setLaneMode(val)}
+                  onClick={() => { setLaneMode(val); inputRef.current?.focus(); }}
                 >
                   <div className="text-2xl mb-1.5">{icon}</div>
                   <div className="font-semibold text-[0.95rem] text-[#1d1d1f] mb-0.5">{name}</div>
@@ -153,6 +386,7 @@ export function ChatPage() {
             onCancelEdit={() => { setEditingIdx(null); setEditValue(''); }}
             onCopy={(t) => navigator.clipboard.writeText(t)}
             onRegenerate={handleRegenerate}
+            onGenerateReport={(thinking) => handleGenerateReport(thinking)}
             onRetry={() => handleSend(msg.content)}
             isLast={i === messages.length - 1}
           />
@@ -161,6 +395,28 @@ export function ChatPage() {
 
       {/* Disclaimer */}
       {messages.length > 0 && <div className="ai-disclaimer show">内容由 AI 生成，请仔细甄别</div>}
+
+      {/* File tags */}
+      {attachedFiles.length > 0 && (
+        <div className="file-tags">
+          {attachedFiles.map((f) => (
+            <span key={f.name} className={`file-tag ${f.status === 'error' ? 'ft-error' : ''}`}>
+              {f.status === 'uploading' ? '⏳' : f.status === 'done' ? '✅' : '❌'} {f.name}
+              <span style={{ cursor: 'pointer', marginLeft: 4 }} onClick={() => removeFileTag(f.name)}>✕</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.txt,.png,.jpg,.jpeg"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
 
       {/* Input */}
       <div className="chat-input-area">
@@ -185,6 +441,16 @@ export function ChatPage() {
             rows={3}
             autoFocus
           />
+          {/* Attach button */}
+          <button
+            type="button"
+            className="attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="上传文件(PDF/TXT/PNG/JPG)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+
           {/* Mode chips */}
           <div style={{ position: 'absolute', left: '14px', bottom: '14px', display: 'flex', gap: '3px', zIndex: 5 }}>
             {(['auto', 'fast', 'slow'] as const).map((m) => (
@@ -217,6 +483,48 @@ export function ChatPage() {
         </div>
       </div>
     </div>
+
+      {/* 报告预览弹窗 */}
+      <dialog ref={reportDialogRef} className="modal">
+        <div className="modal-box" style={{ borderRadius: '16px', padding: 0, overflow: 'hidden', maxWidth: '720px', width: '90vw' }}>
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <h3 className="text-base font-semibold text-[#1d1d1f]">报告预览</h3>
+            <form method="dialog">
+              <button className="w-7 h-7 rounded-full border-none bg-transparent text-[#9ca3af] cursor-pointer flex items-center justify-center text-sm hover:bg-[#f3f4f6] hover:text-[#4b5563]">✕</button>
+            </form>
+          </div>
+          <div className="p-5 max-h-[60vh] overflow-y-auto">
+            {reportContent ? (
+              <div className="markdown-body" style={{ fontSize: '0.85rem' }}>
+                {reportContent.split('\n').map((line, i) => (
+                  <p key={i} style={{ margin: '0.2em 0' }}>{line || '\u00A0'}</p>
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <span className="loading loading-spinner loading-sm text-[#4f8cff]" />
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 px-5 pb-5">
+            <form method="dialog">
+              <button className="btn btn-ghost btn-sm" style={{ borderRadius: '10px' }}>关闭</button>
+            </form>
+            <button
+              className="btn btn-sm"
+              disabled={!reportContent}
+              onClick={downloadReport}
+              style={{ background: 'var(--brand-primary)', color: '#fff', borderRadius: '10px', border: 'none' }}
+            >
+              保存为 .md
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => { setReportContent(null); }}>close</button>
+        </form>
+      </dialog>
+    </>
   );
 }
 
@@ -234,6 +542,7 @@ function MsgBubble({
   onStartEdit: () => void; onSubmitEdit: () => void; onCancelEdit: () => void;
   onCopy: (t: string) => void;
   onRegenerate: () => void;
+  onGenerateReport: (thinking: Array<{ name: string; content: string }>) => void;
   onRetry: () => void;
   isLast: boolean;
 }) {
@@ -271,9 +580,15 @@ function MsgBubble({
     );
   }
 
+  // Helper: extract base name
+  const baseName2 = (key: string) => {
+    const idx = key.lastIndexOf('\x00');
+    return idx === -1 ? key : key.slice(0, idx);
+  };
+
   // Assistant
   const thinking = isStreaming
-    ? streamingOrder.map((name) => ({ name, content: streamingThinking.get(name) || '' }))
+    ? streamingOrder.map((key) => ({ name: baseName2(key), content: streamingThinking.get(key) || '' }))
     : msg.thinking || [];
   const hasThinking = thinking.length > 0;
 
@@ -328,6 +643,9 @@ function MsgBubble({
         <div className="msg-toolbar">
           <button className="toolbar-btn" onClick={() => onCopy(msg.content)}>复制</button>
           <button className="toolbar-btn" onClick={onRegenerate}>重新生成</button>
+          {msg.thinking && msg.thinking.length > 0 && (
+            <button className="toolbar-btn" onClick={() => onGenerateReport(msg.thinking!)}>生成报告</button>
+          )}
         </div>
       )}
       {msg.error && <button className="toolbar-btn mt-1" onClick={onRetry}>重试</button>}
@@ -335,13 +653,4 @@ function MsgBubble({
   );
 }
 
-// ── Lightweight Markdown renderer ──
-function Markdown({ text }: { text: string }) {
-  if (!text) return null;
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const withCode = escaped.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
-    const id = `cb-${Math.random().toString(36).slice(2, 8)}`;
-    return `<div class="code-block" id="${id}"><div class="code-lang">${lang || 'code'}</div><button class="code-copy" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent);this.textContent='已复制';setTimeout(()=>this.textContent='复制',2000)">复制</button><pre><code>${code.trim()}</code></pre></div>`;
-  });
-  return <div dangerouslySetInnerHTML={{ __html: withCode.replace(/\n/g, '<br>') }} />;
-}
+

@@ -29,3 +29,9 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
+
+// Report API (uses plain POST /api/report, no auth required)
+export const generateReportApi = async (thinking: Array<{ name: string; content: string }>) => {
+  const res = await apiClient.post<{ content: string; path: string }>('/report', { thinking });
+  return res.data;
+};

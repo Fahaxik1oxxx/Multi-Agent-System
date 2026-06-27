@@ -123,21 +123,40 @@ export function useStreamChat() {
       switch (event.type) {
         case 'agent_start':
           if (event.name) {
-            thinking.set(event.name, '');
-            thinkingOrder.push(event.name);
+            // 使用唯一key区分同一agent的多次循环: name_序号
+            const count = thinkingOrder.filter(n => {
+              const base = n.lastIndexOf('\x00');
+              return (base === -1 ? n : n.slice(0, base)) === event.name;
+            }).length;
+            const key = count > 0 ? `${event.name}\x00${count}` : event.name;
+            thinking.set(key, '');
+            thinkingOrder.push(key);
           }
           return { ...prev, thinking, thinkingOrder, currentAgent: event.name || null };
 
         case 'token':
           if (event.name && event.content) {
-            const existing = thinking.get(event.name) || '';
-            thinking.set(event.name, existing + event.content);
+            // 找到最新一次该agent的key
+            const latestKey = [...thinkingOrder].reverse().find(n => {
+              const base = n.lastIndexOf('\x00');
+              return (base === -1 ? n : n.slice(0, base)) === event.name;
+            });
+            if (latestKey) {
+              const existing = thinking.get(latestKey) || '';
+              thinking.set(latestKey, existing + event.content);
+            }
           }
           return { ...prev, thinking };
 
         case 'agent_end':
           if (event.name && event.content) {
-            thinking.set(event.name, event.content);
+            const latestKey = [...thinkingOrder].reverse().find(n => {
+              const base = n.lastIndexOf('\x00');
+              return (base === -1 ? n : n.slice(0, base)) === event.name;
+            });
+            if (latestKey) {
+              thinking.set(latestKey, event.content);
+            }
           }
           return { ...prev, thinking };
 

@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 
 const routeLabels: Record<string, string> = {
   '/': '工作空间总览',
@@ -38,9 +38,9 @@ export function Header() {
             {crumbs.map((crumb, i) => (
               <li key={i}>
                 {i < crumbs.length - 1 ? (
-                  <a href={crumb.path} className="text-[#81858c] hover:text-[#4f8cff]">
+                  <Link to={crumb.path} className="text-[#81858c] hover:text-[#4f8cff]">
                     {crumb.label}
-                  </a>
+                  </Link>
                 ) : (
                   <span className="font-medium text-[#1d1d1f]">{crumb.label}</span>
                 )}
