@@ -1,6 +1,7 @@
 """
 流式工作流引擎 —— 管理 SSE 会话并在后台线程运行 LangGraph。
 """
+
 import threading
 import logging
 import time
@@ -37,6 +38,58 @@ threading.Thread(target=_cleanup_loop, daemon=True).start()
 _stream_graph = build_stream_workflow()
 
 
+async def run_sync_workflow(user_input: str, lane_mode: str = "auto", timeout: float = 90.0) -> dict:
+    """同步版工作流：在后台线程运行流式图，收集所有事件后返回结果 dict。"""
+    import uuid
+    import asyncio
+
+    loop = asyncio.get_event_loop()
+    state = SessionState(
+        queue=asyncio.Queue(),
+        cancel=threading.Event(),
+        loop=loop,
+        created_at=time.time(),
+        user_id="sync",
+    )
+    session_id = uuid.uuid4().hex
+    sessions[session_id] = state
+
+    thread = threading.Thread(
+        target=run_workflow_streaming,
+        args=({"message": user_input, "lane_mode": lane_mode}, state),
+        daemon=True,
+    )
+    thread.start()
+
+    reply = ""
+    thinking: list = []
+    task_type = "未知"
+    error = None
+
+    while True:
+        try:
+            event = await asyncio.wait_for(state.queue.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            state.cancel.set()
+            error = f"执行超时（>{timeout}s）"
+            break
+        if event is _DONE:
+            break
+        if event["type"] == "done":
+            reply = event.get("reply", "")
+            thinking = event.get("thinking", [])
+            task_type = event.get("task_type", "未知")
+        elif event["type"] == "error":
+            error = event.get("content", "未知错误")
+
+    sessions.pop(session_id, None)
+
+    if error:
+        raise RuntimeError(error)
+
+    return {"reply": reply, "thinking": thinking, "task_type": task_type}
+
+
 # —— 提供给 router 的入口 ——
 def run_workflow_streaming(data: dict, state: SessionState):
     """在后台线程运行 LangGraph 流式工作流，通过 queue 推送到 SSE。"""
@@ -44,8 +97,7 @@ def run_workflow_streaming(data: dict, state: SessionState):
         user_input = data.get("message", "")
         lane_mode = data.get("lane_mode", "auto")
 
-        logger.info("stream | start langgraph pipeline | input=%s | user=%s",
-                    user_input[:60], state.user_id)
+        logger.info("stream | start langgraph pipeline | input=%s | user=%s", user_input[:60], state.user_id)
 
         task_type, complexity, need_report = classify(user_input, lane_mode)
 
@@ -63,7 +115,7 @@ def run_workflow_streaming(data: dict, state: SessionState):
             test_result="",
             fix_count=0,
             thinking=[],
-            final_output=""
+            final_output="",
         )
 
         result_state = _stream_graph.invoke(initial_state)
@@ -71,16 +123,20 @@ def run_workflow_streaming(data: dict, state: SessionState):
         final_reply = result_state.get("final_output") or result_state.get("code_or_draft", "")
         thinking = result_state.get("thinking", [])
 
-        push(state, {
-            "type": "done",
-            "reply": final_reply,
-            "thinking": thinking,
-            "task_type": result_state.get("task_type", "未知")
-        })
+        push(
+            state,
+            {
+                "type": "done",
+                "reply": final_reply,
+                "thinking": thinking,
+                "task_type": result_state.get("task_type", "未知"),
+            },
+        )
         logger.info("stream | pipeline finished | reply_chars=%d", len(final_reply))
 
     except Exception as e:
         import traceback
+
         tb = traceback.format_exc()
         logger.error("stream | pipeline exception: %s\n%s", e, tb)
         push(state, {"type": "error", "content": f"{type(e).__name__}: {e}"})

@@ -1,6 +1,7 @@
 """
 流式 LangGraph 节点与工作流定义
 """
+
 import logging
 import re
 import operator
@@ -69,8 +70,7 @@ def _route_test(state: StreamWorkflowState) -> str:
     return "coder" if task_type in ("编程", "分析") else "writer"
 
 
-def _stream_llm(role: str, prompt: str, session: SessionState,
-                temperature: float = 0.3) -> str:
+def _stream_llm(role: str, prompt: str, session: SessionState, temperature: float = 0.3) -> str:
     """辅助函数：通用 LLM 流式调用并推送到队列"""
     push(session, {"type": "agent_start", "name": role})
     llm = create_llm(role, temperature=temperature)
@@ -91,8 +91,7 @@ def bot_node(state: StreamWorkflowState) -> dict:
     session = state["session"]
     prompt = f"{SYSTEM_PROMPTS['Bot']}\n\n用户输入: {state['user_input']}"
     content = _stream_llm("Bot", prompt, session, temperature=0.5)
-    return {"final_output": content,
-            "thinking": [{"name": "Bot", "content": content}]}
+    return {"final_output": content, "thinking": [{"name": "Bot", "content": content}]}
 
 
 def planner_node(state: StreamWorkflowState) -> dict:
@@ -100,19 +99,12 @@ def planner_node(state: StreamWorkflowState) -> dict:
     task_type = state.get("task_type", "编程")
     extra = ""
     if task_type == "分析":
-        extra = (
-            "\n注意：这是数据分析任务。规划步骤应包含："
-            "数据加载 → 清洗 → 统计/分组 → 可视化。"
-        )
+        extra = "\n注意：这是数据分析任务。规划步骤应包含：数据加载 → 清洗 → 统计/分组 → 可视化。"
     elif task_type == "编程":
-        extra = (
-            "\n注意：执行环境仅支持 Python。"
-            "如用户要求 C/Java/Rust 等语言，只规划到「编写代码阶段」这一步。"
-        )
+        extra = "\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码阶段」这一步。"
     prompt = f"{SYSTEM_PROMPTS['Planner']}\n{extra}\n\n用户需求: {state['user_input']}"
     content = _stream_llm("Planner", prompt, session)
-    return {"plan": content,
-            "thinking": [{"name": "Planner", "content": content}]}
+    return {"plan": content, "thinking": [{"name": "Planner", "content": content}]}
 
 
 def retriever_node(state: StreamWorkflowState) -> dict:
@@ -136,11 +128,9 @@ def retriever_node(state: StreamWorkflowState) -> dict:
         text = chunk.content if hasattr(chunk, "content") else str(chunk)
         content += text
         push(session, {"type": "token", "name": "Retriever", "content": text})
-    push(session, {"type": "agent_end", "name": "Retriever",
-                   "content": content})
+    push(session, {"type": "agent_end", "name": "Retriever", "content": content})
     logger.info("stream | agent_end=Retriever | chars=%d", len(content))
-    return {"knowledge": content,
-            "thinking": [{"name": "Retriever", "content": content}]}
+    return {"knowledge": content, "thinking": [{"name": "Retriever", "content": content}]}
 
 
 def coder_node(state: StreamWorkflowState) -> dict:
@@ -166,14 +156,12 @@ def coder_node(state: StreamWorkflowState) -> dict:
     )
     if state.get("test_result") and "✅" in state.get("test_result", ""):
         prompt += f"上一次审阅反馈（请据此修改代码）：\n{state.get('test_result')}\n\n"
-    if state.get("execution_result") and "exitcode:" in state.get(
-            "execution_result", ""):
+    if state.get("execution_result") and "exitcode:" in state.get("execution_result", ""):
         prompt += f"上一次执行结果，请据此修复代码！：\n{state.get('execution_result')}\n\n"
     prompt += "请编写代码实现上述需求。"
     session_prompt = f"{sys_prompt}\n\n{prompt}"
     content = _stream_llm("Coder", session_prompt, session, temperature=0.2)
-    return {"code_or_draft": content,
-            "thinking": [{"name": "Coder", "content": content}]}
+    return {"code_or_draft": content, "thinking": [{"name": "Coder", "content": content}]}
 
 
 def writer_node(state: StreamWorkflowState) -> dict:
@@ -188,15 +176,13 @@ def writer_node(state: StreamWorkflowState) -> dict:
     prompt += "请撰写满足需求的文稿/报告。"
     session_prompt = f"{SYSTEM_PROMPTS['Writer']}\n\n{prompt}"
     content = _stream_llm("Writer", session_prompt, session, temperature=0.4)
-    return {"code_or_draft": content,
-            "thinking": [{"name": "Writer", "content": content}]}
+    return {"code_or_draft": content, "thinking": [{"name": "Writer", "content": content}]}
 
 
 def executor_node(state: StreamWorkflowState) -> dict:
     session = state["session"]
     code_or_draft = state.get("code_or_draft", "")
-    code_blocks = re.findall(r"```(?:python)?\s*\n(.*?)```",
-                             code_or_draft, re.DOTALL)
+    code_blocks = re.findall(r"```(?:python)?\s*\n(.*?)```", code_or_draft, re.DOTALL)
     if not code_blocks:
         return {"execution_result": "（没有有效代码块执行）"}
     push(session, {"type": "agent_start", "name": "Executor"})
@@ -214,15 +200,10 @@ def executor_node(state: StreamWorkflowState) -> dict:
             f"stderr:\n{result['stderr']}"
         )
         all_results.append(text)
-        push(session, {"type": "token", "name": "Executor",
-                       "content": text + "\n\n"})
-    execution_result = "\n\n".join(all_results) if all_results \
-        else "（没有有效代码块执行）"
-    push(session, {"type": "agent_end", "name": "Executor",
-                   "content": execution_result})
-    return {"execution_result": execution_result,
-            "thinking": [{"name": "Executor",
-                          "content": execution_result}]}
+        push(session, {"type": "token", "name": "Executor", "content": text + "\n\n"})
+    execution_result = "\n\n".join(all_results) if all_results else "（没有有效代码块执行）"
+    push(session, {"type": "agent_end", "name": "Executor", "content": execution_result})
+    return {"execution_result": execution_result, "thinking": [{"name": "Executor", "content": execution_result}]}
 
 
 def tester_node(state: StreamWorkflowState) -> dict:
@@ -230,19 +211,14 @@ def tester_node(state: StreamWorkflowState) -> dict:
     task_type = state.get("task_type", "编程")
     code_or_draft = state.get("code_or_draft", "")
     execution_result = state.get("execution_result", "")
-    prompt = (
-        f"用户原始需求：{state['user_input']}\n\n"
-        f"任务类型：{task_type}\n"
-        f"产出内容：\n{code_or_draft[:3000]}\n"
-    )
+    prompt = f"用户原始需求：{state['user_input']}\n\n任务类型：{task_type}\n产出内容：\n{code_or_draft[:3000]}\n"
     if "无代码" not in execution_result:
         prompt += f"执行结果：\n{execution_result}\n\n"
     prompt += "请审阅上述产出是否满足用户原始需求。"
     session_prompt = f"{SYSTEM_PROMPTS['Tester']}\n\n{prompt}"
     content = _stream_llm("Tester", session_prompt, session, temperature=0.2)
     new_fix_count = state.get("fix_count", 0) + 1
-    return {"test_result": content, "fix_count": new_fix_count,
-            "thinking": [{"name": "Tester", "content": content}]}
+    return {"test_result": content, "fix_count": new_fix_count, "thinking": [{"name": "Tester", "content": content}]}
 
 
 def summarizer_node(state: StreamWorkflowState) -> dict:
@@ -257,8 +233,7 @@ def summarizer_node(state: StreamWorkflowState) -> dict:
         f"### 审阅结果\n{state.get('test_result', '')}"
     )
     content = _stream_llm("Summarizer", prompt, session)
-    return {"final_output": content,
-            "thinking": [{"name": "Summarizer", "content": content}]}
+    return {"final_output": content, "thinking": [{"name": "Summarizer", "content": content}]}
 
 
 # —— 构建 LangGraph ——

@@ -1,5 +1,6 @@
 import io
 import os, sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import uuid
@@ -16,9 +17,7 @@ def _auth(token: str) -> dict:
 def _register(client, suffix: str = ""):
     """注册测试用户，返回 (token, user_id)"""
     name = f"test_{suffix}_{uuid.uuid4().hex[:6]}"
-    resp = client.post("/api/auth/register", json={
-        "name": name, "email": f"{name}@t.com", "password": "test1234"
-    })
+    resp = client.post("/api/auth/register", json={"name": name, "email": f"{name}@t.com", "password": "test1234"})
     assert resp.status_code == 200, f"注册失败 ({name}): {resp.json()}"
     data = resp.json()
     return data["token"], data["user_id"]
@@ -32,20 +31,14 @@ class TestMigration:
             db = app.state.db
             with db._conn() as conn:
                 # 验证版本表
-                v = conn.execute(
-                    "SELECT MAX(version) FROM schema_version"
-                ).fetchone()[0]
+                v = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
                 assert v == db.TARGET_SCHEMA_VERSION
 
                 # 验证业务表存在
-                tables = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall()
+                tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
                 table_names = [t[0] for t in tables]
-                for expected in ["users", "sessions", "user_configs",
-                                 "schema_version"]:
-                    assert expected in table_names, \
-                        f"表 {expected} 缺失"
+                for expected in ["users", "sessions", "user_configs", "schema_version"]:
+                    assert expected in table_names, f"表 {expected} 缺失"
 
     def test_version_ahead_rejected(self, tmp_path):
         """版本超前 → RuntimeError 拒绝启动"""
@@ -57,6 +50,7 @@ class TestMigration:
         conn.close()
 
         from user.db import Database
+
         with pytest.raises(RuntimeError, match="版本.*高于代码版本"):
             Database(db_path)
 
@@ -68,9 +62,7 @@ class TestMigration:
             # 二次调用 _init_db 不应报错
             db._init_db()
             with db._conn() as conn:
-                v = conn.execute(
-                    "SELECT MAX(version) FROM schema_version"
-                ).fetchone()[0]
+                v = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
                 assert v == db.TARGET_SCHEMA_VERSION
 
 
@@ -91,8 +83,7 @@ class TestFts5Sync:
 
             with db._conn() as conn:
                 rows = conn.execute(
-                    "SELECT msg_index, role FROM messages_fts "
-                    "WHERE session_id = ? ORDER BY msg_index",
+                    "SELECT msg_index, role FROM messages_fts WHERE session_id = ? ORDER BY msg_index",
                     (sid,),
                 ).fetchall()
             # 只有 2 条有效内容入库
@@ -112,8 +103,7 @@ class TestFts5Sync:
             msgs_v1 = [{"role": "user", "content": "原来的消息"}]
             db.upsert_session(sid, user_id, msgs_v1, "旧标题")
 
-            msgs_v2 = [{"role": "user", "content": "更新后的消息"}
-                      ]
+            msgs_v2 = [{"role": "user", "content": "更新后的消息"}]
             db.upsert_session(sid, user_id, msgs_v2, "新标题")
 
             with db._conn() as conn:
@@ -139,8 +129,7 @@ class TestFts5Sync:
 
             with db._conn() as conn:
                 rows = conn.execute(
-                    "SELECT COUNT(*) AS cnt FROM messages_fts "
-                    "WHERE session_id = ?",
+                    "SELECT COUNT(*) AS cnt FROM messages_fts WHERE session_id = ?",
                     (sid,),
                 ).fetchone()
             assert rows["cnt"] == 0
@@ -170,6 +159,7 @@ class TestFts5Sync:
     def test_backfill_on_v2_migration(self, tmp_path):
         """v1 数据库迁移到 v2，已有会话回填到 FTS5"""
         import json as _json
+
         db_path = os.path.join(tmp_path, "test_backfill.db")
 
         # 手动创建 v1 数据库
@@ -216,11 +206,11 @@ class TestFts5Sync:
 
         # 用 Database 打开，应触发 v2 迁移并回填
         from user.db import Database
+
         db = Database(db_path)
         with db._conn() as conn:
             rows = conn.execute(
-                "SELECT content FROM messages_fts WHERE session_id = ? "
-                "ORDER BY msg_index",
+                "SELECT content FROM messages_fts WHERE session_id = ? ORDER BY msg_index",
                 (sid,),
             ).fetchall()
         assert len(rows) == 2
@@ -238,8 +228,7 @@ class TestSearch:
             sid = f"test_{uuid.uuid4().hex[:8]}"
             msgs = [
                 {"role": "user", "content": "如何用 Python 写网络爬虫"},
-                {"role": "assistant",
-                 "content": "你可以使用 requests + BeautifulSoup 来构建爬虫"},
+                {"role": "assistant", "content": "你可以使用 requests + BeautifulSoup 来构建爬虫"},
                 {"role": "user", "content": "请给我一个完整示例"},
             ]
             db.upsert_session(sid, user_id, msgs)
@@ -273,9 +262,7 @@ class TestSearch:
             db = app.state.db
 
             sid_a = f"test_{uuid.uuid4().hex[:8]}"
-            db.upsert_session(sid_a, uid_a, [
-                {"role": "user", "content": "用户A的秘密消息"}
-            ])
+            db.upsert_session(sid_a, uid_a, [{"role": "user", "content": "用户A的秘密消息"}])
 
             # 用户 B 搜索用户 A 的内容
             results = db.search_messages(uid_b, "秘密消息")

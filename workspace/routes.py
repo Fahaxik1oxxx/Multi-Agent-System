@@ -1,6 +1,7 @@
 """
 工作空间与项目管理 API 路由
 """
+
 import json
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ admin_router = APIRouter()
 
 
 # ──── 工作空间 ────
+
 
 @workspace_router.get("")
 async def list_workspaces(request: Request, user: dict = Depends(require_auth)):
@@ -79,6 +81,7 @@ async def delete_workspace(
 
 # ──── 成员管理 ────
 
+
 @workspace_router.post("/{workspace_id}/members")
 async def invite_member(
     request: Request,
@@ -118,6 +121,7 @@ async def remove_member(
 
 # ──── 项目管理 ────
 
+
 @project_router.get("/w/{workspace_id}/projects")
 async def list_projects(
     request: Request,
@@ -139,9 +143,7 @@ async def create_project(
     if not name:
         return JSONResponse({"error": "项目名称不能为空"}, status_code=400)
     description = (data.get("description") or "").strip()
-    pid = _get_db(request).create_project(
-        workspace_id, name, description, member["user_id"]
-    )
+    pid = _get_db(request).create_project(workspace_id, name, description, member["user_id"])
     return JSONResponse({"id": pid, "name": name, "status": "ok"}, status_code=201)
 
 
@@ -181,6 +183,7 @@ async def delete_project(
 
 # ──── 管理后台 ────
 
+
 @admin_router.get("/users")
 async def list_users(
     request: Request,
@@ -205,6 +208,7 @@ async def toggle_admin(
 
 # ──── 评估日志 ────
 
+
 @project_router.post("/eval/log")
 async def log_eval(request: Request, user: dict = Depends(require_auth)):
     data = await request.json()
@@ -217,10 +221,14 @@ async def log_eval(request: Request, user: dict = Depends(require_auth)):
             if role is None and not db.is_admin(user["user_id"]):
                 return JSONResponse({"error": "无权访问"}, status_code=403)
     eid = db.create_eval_log(
-        project_id=project_id, session_id=data.get("session_id", ""),
-        task_type=data.get("task_type", ""), complexity=data.get("complexity", ""),
-        agent_count=data.get("agent_count", 0), total_tokens=data.get("total_tokens", 0),
-        elapsed_ms=data.get("elapsed_ms", 0), has_error=1 if data.get("has_error") else 0,
+        project_id=project_id,
+        session_id=data.get("session_id", ""),
+        task_type=data.get("task_type", ""),
+        complexity=data.get("complexity", ""),
+        agent_count=data.get("agent_count", 0),
+        total_tokens=data.get("total_tokens", 0),
+        elapsed_ms=data.get("elapsed_ms", 0),
+        has_error=1 if data.get("has_error") else 0,
     )
     return JSONResponse({"id": eid, "status": "ok"})
 

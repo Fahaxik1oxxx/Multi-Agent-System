@@ -13,8 +13,13 @@ from typing import Any
 # ═══════════════════════════════════════════════════════════════
 
 ROLES: tuple[str, ...] = (
-    "Planner", "Retriever", "Coder", "Writer",
-    "Tester", "Summarizer", "Bot",
+    "Planner",
+    "Retriever",
+    "Coder",
+    "Writer",
+    "Tester",
+    "Summarizer",
+    "Bot",
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -34,13 +39,13 @@ MODEL_POOL: dict[str, dict[str, Any]] = {
 # ═══════════════════════════════════════════════════════════════
 
 _ROLE_MODEL: dict[str, str] = {
-    "Planner":    "a-deepseek",
-    "Retriever":  "a-deepseek",
-    "Coder":      "a-deepseek",
-    "Tester":     "a-deepseek",
-    "Writer":     "a-deepseek",
+    "Planner": "a-deepseek",
+    "Retriever": "a-deepseek",
+    "Coder": "a-deepseek",
+    "Tester": "a-deepseek",
+    "Writer": "a-deepseek",
     "Summarizer": "a-deepseek",
-    "Bot":        "a-deepseek",
+    "Bot": "a-deepseek",
 }
 
 # 公开别名（向后兼容）
@@ -50,6 +55,7 @@ ROLE_MODEL: dict[str, str] = _ROLE_MODEL
 # ═══════════════════════════════════════════════════════════════
 # 公共 API
 # ═══════════════════════════════════════════════════════════════
+
 
 def _resolve_model(role: str) -> dict[str, Any]:
     """根据角色名查找模型池中的配置。找不到返回占位配置。"""

@@ -1,4 +1,5 @@
 """知识库管理 API 路由。"""
+
 import os
 from fastapi import APIRouter, UploadFile, File, Depends
 from fastapi.responses import JSONResponse
@@ -37,12 +38,14 @@ async def kb_files(user: dict = Depends(require_auth)):
 @router.get("/stats")
 async def kb_stats(user: dict = Depends(require_auth)):
     from rag.knowledge_base import get_stats
+
     return JSONResponse(get_stats(user["user_id"]))
 
 
 @router.post("/rebuild")
 async def kb_rebuild(user: dict = Depends(require_auth)):
     from rag.knowledge_base import build_index
+
     n = build_index(user["user_id"])
     return JSONResponse({"success": True, "added": n})
 
@@ -90,6 +93,7 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
             f.write(contents)
         # 同时复制到 coding/ 目录供 Agent 的 read_file 工具读取
         import shutil
+
         coding_dir = os.path.join(_BASE, "coding")
         os.makedirs(coding_dir, exist_ok=True)
         shutil.copy2(doc_path, os.path.join(coding_dir, safe_name))

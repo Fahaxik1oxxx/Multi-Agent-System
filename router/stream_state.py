@@ -1,6 +1,7 @@
 """
 流式状态基类与工具，管理 SSE 推送队列
 """
+
 import asyncio
 import threading
 from dataclasses import dataclass
