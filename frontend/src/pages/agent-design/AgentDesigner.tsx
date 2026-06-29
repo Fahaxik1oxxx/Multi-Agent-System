@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient from '@/api/client';
 import { toast } from 'sonner';
+
+const PROMPT_STORAGE_KEY = 'custom_prompts';
+
+function loadPrompts(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+function savePrompts(prompts: Record<string, string>) {
+  localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prompts));
+}
 
 const AGENTS = [
   { key: 'Planner', icon: '🧋', label: 'Planner', desc: '任务规划' },
@@ -14,63 +22,47 @@ const AGENTS = [
 ];
 
 const DEFAULT_PROMPTS: Record<string, string> = {
-  Planner: '你是高级项目经理。根据用户需求制定详细的执行计划。\n用编号列表列出执行步骤，每步含：目标、技术/工具、预期输出。',
-  Retriever: '你是知识检索专家。从知识库中查找与任务相关的信息。',
-  Coder: '你是 Python 程序员。编写并执行代码。',
-  Writer: '你是专业文档撰写专家。使用 Markdown 格式输出。',
-  Tester: '你是高级 QA 评审工程师。审查输出是否满足用户需求。',
-  Summarizer: '你是技术文档专家。汇总执行过程，生成简洁报告。',
-  Bot: '你是友好的 AI 助手。用简洁自然的中文直接回答。',
+  Planner: '你是高级项目经理。根据用户需求制定详细的执行计划。\n用编号列表列出执行步骤，每步含：目标、技术/工具、预期输出。\n最后一行必须是 \'task_type: coding\' 或 \'task_type: writing\' 或 \'task_type: analysis\'，表示任务类型。\n\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码片段」这一步，编译/运行由用户自行完成，task_type 标为 coding。\n如用户提问涉及最新资讯/实时信息/当前事件，首先使用 web_search 工具搜索获取最新数据。\n分析类任务（数据分析/CSV/Excel/统计/图表）→ task_type: analysis。',
+  Bot: '你是友好的 AI 助手。用简洁、自然的中文直接回答用户。\n闲聊时友善亲切；问答时准确清晰，不啰嗦。\n如果用户问及最新资讯、实时新闻、当前事件或你不确定的信息，使用 web_search 工具搜索后回答。\n如果是简单的编程问题（如「Hello World」「怎么写冒泡排序」），直接给出代码片段和简要说明，不要说「我帮你规划」之类的话。\n如果是知识性问题，直接给出准确简明的解释。\n绝对不要暴露任何内部角色名（Planner/Coder 等）。你就是普通助手。',
+  Retriever: '你是知识检索专家。你的**唯一职责**是从知识库中查找与任务相关的信息。\n使用 search_knowledge 工具查询知识库。\n\n铁律：\n- 你只能调用 search_knowledge，不得编写代码、不得写文件。\n- 如果搜索结果与当前任务完全不相关，必须明确回复「知识库中无相关内容，请使用自身知识完成任务」。\n- 如果找到相关信息，总结要点后交给下游角色处理。\n- 不要把检索结果原文全部贴出来——只贴最相关的 1-2 条摘要。',
+  Coder: '你是 Python 程序员（仅 Python）。你的核心职责是：**编写并执行代码**。\n\n1. 用 ```python ... ``` 代码块编写可直接执行的 Python 代码。\n2. 代码必须包含 print() 输出关键结果，用 assert 做验证。\n3. 如需要保存文件（图表/报告），使用 write_file 工具。\n4. 不要在代码块里写「建议」「如果」「可以」——给出确定的可执行代码。\n\n能力边界：你只能写 Python。如用户要 C/Java/Go 等语言，只提供代码片段 + 注释说明，末尾标注「需用户手动编译运行」。',
+  Writer: '你是专业文档撰写专家。根据 Planner 的计划和 Retriever 提供的资料撰写内容。\n使用 Markdown 格式输出，适当使用表格和列表。',
+  Executor: '你是代码执行专家。负责运行 Python 代码并返回执行结果。',
+  Tester: '你是高级 QA 评审工程师。审查下游输出是否满足用户的原始需求。\n\n核心原则：以「用户最初要什么」为标准，不以外观/格式为转移。\n对于代码：审查逻辑正确性、边界条件、实际可运行。\n对于报告/文章：审查内容是否真正回答了用户的问题。\n\n如果发现偏离用户原始需求，回复以 \'❌ 发现以下问题\' 开头。\n如果完全满足用户要求，回复以 \'✅ 评审全部通过\' 开头。',
+  Summarizer: '你是技术文档专家。汇总整个执行过程，生成简洁报告。\n\n原则：输出长度与任务体量成正比。\n简单任务（HelloWorld/示例）→ 2-3 段即可，不要过度结构化。\n复杂任务（完整项目/数据分析）→ 可用节/表/代码块详细展开。\n报告包含：任务概述、关键产出、评审结论。使用 Markdown。',
 };
 
 export function AgentDesigner() {
   const [selectedAgent, setSelectedAgent] = useState('Planner');
   const [editPrompt, setEditPrompt] = useState('');
-  const queryClient = useQueryClient();
 
-  const { data: config } = useQuery({
-    queryKey: ['user-config'],
-    queryFn: async () => {
-      const res = await apiClient.get<{ roles?: Record<string, string> }>('/user/config');
-      return res.data;
-    },
-  });
-
-  // Reset edit prompt when switching agents (so currentPrompt falls back to saved/default)
+  // 切换 Agent 时从 localStorage 加载已保存的自定义 Prompt
   useEffect(() => {
-    setEditPrompt('');
+    const saved = loadPrompts();
+    setEditPrompt(saved[selectedAgent] || '');
   }, [selectedAgent]);
 
-  const currentPrompt =
-    editPrompt ||
-    config?.roles?.[selectedAgent] ||
-    DEFAULT_PROMPTS[selectedAgent] ||
-    '';
-
-  const saveMutation = useMutation({
-    mutationFn: async (roles: Record<string, string>) => {
-      await apiClient.put('/user/config', { roles });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-config'] });
-      toast.success('配置已保存');
-    },
-    onError: (err: unknown) => {
-      const msg =
-        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
-        '保存失败';
-      toast.error(msg);
-    },
-  });
+  const hasCustom = editPrompt !== '';
 
   const handleSave = () => {
-    const roles = { ...(config?.roles || {}) };
-    roles[selectedAgent] = editPrompt || currentPrompt;
-    saveMutation.mutate(roles);
+    const prompts = loadPrompts();
+    if (editPrompt) {
+      prompts[selectedAgent] = editPrompt;
+    } else {
+      delete prompts[selectedAgent];
+    }
+    savePrompts(prompts);
+    toast.success(`「${selectedAgent}」Prompt 已保存`);
   };
 
   const handleReset = () => {
-    setEditPrompt(DEFAULT_PROMPTS[selectedAgent] || '');
+    setEditPrompt('');
+    const prompts = loadPrompts();
+    if (selectedAgent in prompts) {
+      delete prompts[selectedAgent];
+      savePrompts(prompts);
+    }
+    toast.success(`${selectedAgent} 已恢复默认`);
   };
 
   return (
@@ -113,8 +105,8 @@ export function AgentDesigner() {
                   {AGENTS.find((a) => a.key === selectedAgent)?.icon}{' '}
                   {selectedAgent} System Prompt
                 </h2>
-                <span className="badge badge-ghost text-xs">
-                  {editPrompt ? '已修改' : config?.roles?.[selectedAgent] ? '自定义配置' : '默认配置'}
+                <span className="badge badge-ghost text-xs" style={hasCustom ? { background: '#f0f4ff', color: '#4f8cff', border: 'none' } : {}}>
+                  {hasCustom ? '已自定义' : '默认'}
                 </span>
               </div>
 
@@ -125,9 +117,9 @@ export function AgentDesigner() {
                   borderColor: '#e0e4e8',
                   minHeight: '300px',
                 }}
-                value={editPrompt || currentPrompt}
+                value={editPrompt ?? ''}
                 onChange={(e) => setEditPrompt(e.target.value)}
-                placeholder="输入 System Prompt..."
+                placeholder={DEFAULT_PROMPTS[selectedAgent]}
               />
 
               <div className="flex justify-end gap-2 mt-2">
@@ -140,7 +132,6 @@ export function AgentDesigner() {
                 </button>
                 <button
                   className="btn btn-sm"
-                  disabled={saveMutation.isPending}
                   onClick={handleSave}
                   style={{
                     background: 'var(--brand-primary)',
@@ -149,9 +140,6 @@ export function AgentDesigner() {
                     border: 'none',
                   }}
                 >
-                  {saveMutation.isPending ? (
-                    <span className="loading loading-spinner loading-sm" />
-                  ) : null}
                   保存
                 </button>
               </div>

@@ -6,14 +6,14 @@
 import os
 import sys
 
-_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-if _PROJECT_DIR not in sys.path:
-    sys.path.insert(0, _PROJECT_DIR)
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
 
 # 加载 .env 文件（优先级高于系统环境变量）
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(_PROJECT_DIR, ".env"), override=True)
+load_dotenv(os.path.join(PROJECT_DIR, ".env"), override=True)
 
 os.environ["HF_ENDPOINT"] = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
 os.environ["NO_PROXY"] = "localhost,127.0.0.1"
@@ -61,7 +61,7 @@ except AttributeError:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """启动时初始化数据库（含迁移校验），关闭时执行 WAL 检查点"""
-    db = Database(os.path.join(_PROJECT_DIR, "data.db"))
+    db = Database(os.path.join(PROJECT_DIR, "data.db"))
     app.state.db = db
     yield
     # 关闭时强制 WAL 检查点，将 -wal 文件内容写入主数据库
@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
 
 # ──── 静态文件 ────
-app.mount("/coding", StaticFiles(directory=os.path.join(_PROJECT_DIR, "coding")), name="coding")
+app.mount("/coding", StaticFiles(directory=os.path.join(PROJECT_DIR, "coding")), name="coding")
 
 # ──── 路由 ────
 from app.knowledge import router as knowledge_router
@@ -106,6 +106,13 @@ app.include_router(team_chat_router, prefix="/api/orgs", tags=["团队聊天"])
 from router.router import router as chat_router
 
 app.include_router(chat_router, prefix="/api", tags=["流式聊天"])
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """根路径 → 重定向到 API 文档"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/api/health", tags=["系统"])
@@ -209,10 +216,10 @@ async def generate_report(request: Request):
         except Exception:
             report = "# 多智能体协作报告\n\n报告生成失败。"
 
-    os.makedirs(os.path.join(_PROJECT_DIR, "reports"), exist_ok=True)
+    os.makedirs(os.path.join(PROJECT_DIR, "reports"), exist_ok=True)
     import time
 
-    report_path = os.path.join(_PROJECT_DIR, "reports", f"report_{int(time.time())}.md")
+    report_path = os.path.join(PROJECT_DIR, "reports", f"report_{int(time.time())}.md")
     try:
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(report)

@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { token, isLoading } = useAuthStore();
+  const { token, isLoading, isGuest } = useAuthStore();
   const location = useLocation();
 
   if (isLoading) {
@@ -13,7 +13,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!token) {
+  // 游客或已登录都放行
+  if (!token && !isGuest) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

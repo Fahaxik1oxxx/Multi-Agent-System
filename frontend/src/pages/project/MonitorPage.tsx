@@ -169,7 +169,7 @@ export function MonitorPage() {
       <div className="flex items-center gap-1 mb-4 text-sm">
         <button
           className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/chat`)}
+          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
         >
           💬 对话
         </button>
@@ -178,7 +178,7 @@ export function MonitorPage() {
         <span className="text-[#d0d4d8] select-none">|</span>
         <button
           className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/eval`)}
+          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
         >
           📊 仪表盘
         </button>
@@ -192,7 +192,7 @@ export function MonitorPage() {
         <button
           className="btn btn-sm"
           style={{ background: '#f0f2f5', color: '#1d1d1f', borderRadius: '10px', border: 'none' }}
-          onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/chat`)}
+          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
         >
           💬 查看对话
         </button>

@@ -17,9 +17,9 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { setAuth } = useAuthStore();
+  const { setAuth, enterGuest } = useAuthStore();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/v3';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +45,8 @@ export function LoginPage() {
   };
 
   const handleGuest = () => {
-    navigate('/guest-chat', { replace: true });
+    enterGuest();
+    navigate('/v3', { replace: true });
   };
 
   return (

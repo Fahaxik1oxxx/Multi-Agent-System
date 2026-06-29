@@ -32,7 +32,7 @@ export function RegisterPage() {
         is_admin: false,
       });
       toast.success('注册成功！');
-      navigate('/', { replace: true });
+      navigate('/v3', { replace: true });
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||

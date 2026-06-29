@@ -1,17 +1,19 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { AdminGuard } from '@/components/auth/AdminGuard';
-import { AppShell } from '@/components/layout/AppShell';
+import { V3AppShell } from '@/components/layout/V3AppShell';
+import { V3PersonalLayout } from '@/components/layout/V3PersonalLayout';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { GuestChat } from '@/pages/project/GuestChat';
-import { WorkspaceOverview } from '@/pages/workspace/WorkspaceOverview';
-import { WorkspaceDetail } from '@/pages/workspace/WorkspaceDetail';
-import { ChatPage } from '@/pages/project/ChatPage';
+import { HomePage } from '@/pages/home/HomePage';
+import { V3ProjectPage } from '@/pages/chat/V3ProjectPage';
+import { V3AgentSelectPage } from '@/pages/chat/V3AgentSelectPage';
+import { ConfigBuilderPage } from '@/pages/chat/ConfigBuilderPage';
+import { V3ChatPage } from '@/pages/chat/V3ChatPage';
 import { MonitorPage } from '@/pages/project/MonitorPage';
 import { EvaluationPage } from '@/pages/project/EvaluationPage';
 import { OrchestrationPage } from '@/pages/project/OrchestrationPage';
-import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { TemplateMarket } from '@/pages/templates/TemplateMarket';
 import { AgentDesigner } from '@/pages/agent-design/AgentDesigner';
 import { AdminPage } from '@/pages/admin/AdminPage';
@@ -28,31 +30,35 @@ export const router = createBrowserRouter([
     path: '/register',
     element: <RegisterPage />,
   },
-  // 游客聊天页（免认证）
   {
     path: '/guest-chat',
     element: <GuestChat />,
   },
   {
-    path: '/',
+    path: '/v3',
     element: (
       <AuthGuard>
-        <AppShell />
+        <V3AppShell />
       </AuthGuard>
     ),
     children: [
-      { index: true, element: <WorkspaceOverview /> },
-      { path: 'w/:workspaceId', element: <WorkspaceDetail /> },
-      { path: 'w/:workspaceId/p/:projectId/chat', element: <ChatPage /> },
-      { path: 'w/:workspaceId/p/:projectId/monitor', element: <MonitorPage /> },
-      { path: 'w/:workspaceId/p/:projectId/eval', element: <EvaluationPage /> },
-      { path: 'w/:workspaceId/p/:projectId/orchestra', element: <OrchestrationPage /> },
+      { index: true, element: <HomePage /> },
+      { path: 'personal/:projectId/config-builder', element: <div className="p-6 max-w-2xl mx-auto"><ConfigBuilderPage /></div> },
+      { path: 'personal/:projectId/agents', element: <V3AgentSelectPage /> },
+      { path: 'personal/:projectId/chat', element: <V3ChatPage /> },
+      { path: 'personal/:projectId/orchestra', element: <OrchestrationPage /> },
+      { path: 'personal/:projectId/monitor', element: <MonitorPage /> },
+      { path: 'personal/:projectId/eval', element: <EvaluationPage /> },
+      { path: 'personal', element: <V3PersonalLayout />, children: [
+        { index: true, element: <V3ProjectPage /> },
+        { path: 'knowledge', element: <KnowledgePage /> },
+        { path: 'templates', element: <TemplateMarket /> },
+      ]},
+      { path: 'personal/agents', element: <div className="p-6 max-w-5xl mx-auto"><AgentDesigner /></div> },
       { path: 'templates', element: <TemplateMarket /> },
-      { path: 'agents', element: <AgentDesigner /> },
-      { path: 'settings', element: <SettingsPage /> },
-      { path: 'knowledge', element: <KnowledgePage /> },
       { path: 'team', element: <TeamHome /> },
       { path: 'team/:orgId', element: <TeamChat /> },
+      { path: 'knowledge', element: <KnowledgePage /> },
       {
         path: 'admin',
         element: (

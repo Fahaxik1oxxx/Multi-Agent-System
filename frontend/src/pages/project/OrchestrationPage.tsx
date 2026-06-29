@@ -164,6 +164,7 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-config', projectId] });
       toast.success('流水线已保存');
+      window.dispatchEvent(new CustomEvent('orchestra-saved'));
     },
     onError: () => toast.error('保存失败'),
   });
@@ -210,26 +211,12 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
         <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#eceef2] text-sm">
           <button
             className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/chat`)}
+            onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
           >
             💬 对话
           </button>
           <span className="text-[#d0d4d8]">|</span>
           <span className="text-[#4f8cff] font-medium">🗺️ 编排</span>
-          <span className="text-[#d0d4d8]">|</span>
-          <button
-            className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/monitor`)}
-          >
-            📡 监控
-          </button>
-          <span className="text-[#d0d4d8]">|</span>
-          <button
-            className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/eval`)}
-          >
-            📊 仪表盘
-          </button>
         </div>
         <Canvas key={pipelineKey} pipeline={pipeline} onChange={setPipeline} />
       </div>

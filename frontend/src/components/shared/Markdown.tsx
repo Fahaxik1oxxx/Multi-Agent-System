@@ -33,12 +33,14 @@ export function Markdown({ text }: MarkdownProps) {
     if (!text) return '';
     try {
       const raw = marked.parse(text) as string;
-      // 为代码块添加复制按钮
-      return raw.replace(
-        /<pre><code class="hljs language-(\w*)">/g,
-        (_, lang) =>
-          `<div class="code-block"><div class="code-lang">${lang || 'code'}</div><button class="code-copy" onclick="(function(btn){const code=btn.parentElement.querySelector('code').textContent;navigator.clipboard.writeText(code).then(()=>{btn.textContent='已复制';setTimeout(()=>btn.textContent='复制',2000)}).catch(()=>{});})(this)">复制</button><pre><code class="hljs language-${lang}">`
-      );
+      // 为代码块添加复制按钮 + 正确闭合 code-block div
+      return raw
+        .replace(
+          /<pre><code class="hljs language-(\w*)">/g,
+          (_, lang) =>
+            `<div class="code-block"><div class="code-lang">${lang || 'code'}</div><button class="code-copy" onclick="(function(btn){const code=btn.parentElement.querySelector('code').textContent;navigator.clipboard.writeText(code).then(()=>{btn.textContent='已复制';setTimeout(()=>btn.textContent='复制',2000)}).catch(()=>{});})(this)">复制</button><pre><code class="hljs language-${lang}">`
+        )
+        .replace(/<\/code><\/pre>/g, '</code></pre></div>');
     } catch {
       return `<pre><code>${text}</code></pre>`;
     }

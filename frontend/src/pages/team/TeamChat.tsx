@@ -127,7 +127,7 @@ export function TeamChat() {
       {/* 左侧栏 — 知识库占位 */}
       <div className="w-56 border-r border-[#e0e4e8] bg-white flex flex-col shrink-0">
         <div className="p-3 border-b border-[#e0e4e8]">
-          <button onClick={() => navigate('/team')} className="flex items-center gap-1 text-sm text-[#81858c] hover:text-[#1d1d1f]">
+          <button onClick={() => navigate('/v3/team')} className="flex items-center gap-1 text-sm text-[#81858c] hover:text-[#1d1d1f]">
             <ArrowLeft size={14} /> 返回
           </button>
         </div>

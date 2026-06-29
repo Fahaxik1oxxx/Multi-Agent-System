@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
 import { workspacesApi } from '@/api/workspaces';
 import { WorkspaceCard } from '@/components/shared/WorkspaceCard';
 import { CreateDialog } from '@/components/shared/CreateDialog';
@@ -7,6 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { toast } from 'sonner';
 
 export function WorkspaceOverview() {
+  const { isGuest } = useAuthStore();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -16,6 +18,7 @@ export function WorkspaceOverview() {
       const res = await workspacesApi.list();
       return res.data;
     },
+    enabled: !isGuest,
   });
 
   const createMutation = useMutation({
@@ -35,6 +38,24 @@ export function WorkspaceOverview() {
       toast.error(msg);
     },
   });
+
+  // 游客模式：展示欢迎卡片
+  if (isGuest) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="text-center max-w-lg">
+          <div className="text-6xl mb-4">🤖</div>
+          <h1 className="text-2xl font-bold text-[#1d1d1f] mb-2">欢迎体验多智能体协作平台</h1>
+          <p className="text-[#81858c] mb-6">
+            输入任何问题，8 个 Agent 为你协作解答。无需注册，立即开始。
+          </p>
+          <p className="text-xs text-[#b0b8c1]">
+            💡 注册后可保存会话、使用知识库、创建团队
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">

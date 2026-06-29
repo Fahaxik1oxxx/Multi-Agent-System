@@ -50,7 +50,7 @@ export function TeamHome() {
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/')} className="text-[#81858c] hover:text-[#1d1d1f]">
+        <button onClick={() => navigate('/v3')} className="text-[#81858c] hover:text-[#1d1d1f]">
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-2xl font-bold text-[#1d1d1f]">团队模式</h1>
@@ -78,7 +78,7 @@ export function TeamHome() {
               <div
                 key={org.id}
                 className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[#e0e4e8] cursor-pointer hover:border-[#4f8cff] hover:shadow-sm transition-all"
-                onClick={() => navigate(`/team/${org.id}`)}
+                onClick={() => navigate(`/v3/team/${org.id}`)}
               >
                 <div className="w-10 h-10 rounded-lg bg-[#4f8cff]/10 flex items-center justify-center shrink-0">
                   <Users size={20} className="text-[#4f8cff]" />

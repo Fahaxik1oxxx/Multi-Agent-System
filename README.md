@@ -1,12 +1,14 @@
-# 多智能体协作系统 v3.4
+# 多智能体协作系统 v3.6
 
 <div align="center">
 
-**基于 LangGraph + LangChain 的七角色多智能体协作系统**
+**基于 LangGraph + LangChain 的七角色多智能体协作系统 + React V3 前端**
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-orange.svg)](https://langchain-ai.github.io/langgraph/)
+[![React](https://img.shields.io/badge/React-19+-61DAFB.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6.svg)](https://www.typescriptlang.org/)
 [![daisyUI](https://img.shields.io/badge/daisyUI-5-purple.svg)](https://daisyui.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -107,10 +109,16 @@ DEEPSEEK_API_KEY=你的DeepSeek-API-Key
 ### 启动
 
 ```bash
-python main.py
+# 后端
+uvicorn main:app --reload --port 8501
+
+# 前端（新终端）
+cd frontend
+npm install
+npx vite --host
 ```
 
-浏览器打开 **http://localhost:8502** 即可使用。
+浏览器打开 **http://localhost:5173** 即可使用（后端端口 8501，前端端口 5173）。
 
 ### 可选：安装 Tesseract-OCR
 
@@ -199,7 +207,24 @@ Multi-Agent-System/
 │   ├── knowledge.py         # 知识库管理 API（Token 鉴权）
 │   └── ocr.py               # Tesseract OCR 模块
 │
-├── templates/               # Jinja2 模板（daisyUI + Tailwind CSS）
+├── frontend/                # React V3 前端（TypeScript）
+│   ├── src/
+│   │   ├── pages/           # 页面组件
+│   │   │   ├── chat/        # 聊天、项目、Agent 选择、配置构建
+│   │   │   ├── project/     # 编排、监控、评估
+│   │   │   ├── agent-design/ # Agent 设计器
+│   │   │   ├── auth/        # 登录/注册
+│   │   │   ├── home/        # 首页
+│   │   │   ├── templates/   # 模板市场
+│   │   │   └── team/        # 团队协作
+│   │   ├── components/      # 共享组件（模态框、导航、布局）
+│   │   ├── api/             # API 客户端
+│   │   ├── routes/          # 路由定义
+│   │   ├── stores/          # 状态管理
+│   │   └── hooks/           # 自定义 Hooks
+│   └── package.json
+│
+├── templates/               # Jinja2 模板（daisyUI + Tailwind CSS，旧版前端）
 │   ├── base.html            # 布局骨架
 │   ├── index.html           # 聊天主页面
 │   └── components/
@@ -218,7 +243,7 @@ Multi-Agent-System/
 │   ├── test_knowledge_routes.py  # 9 个知识库 API 测试
 │   └── test_fts5.py              # 17 个 FTS5 全文检索 + 迁移 + WAL 测试
 │
-├── docs/
+├── docs/                    # 文档
 │   ├── api.md               # API 文档
 │   ├── user.md              # 用户管理体系设计
 │   ├── 答辩报告.md           # 项目答辩报告
