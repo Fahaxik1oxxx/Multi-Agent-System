@@ -4,6 +4,7 @@ Agent 定义 —— 基于 LangChain ChatDeepSeek。
 """
 
 import os
+
 os.environ["NO_PROXY"] = os.environ.get("NO_PROXY", "") + ",localhost,127.0.0.1"
 os.environ["no_proxy"] = os.environ.get("no_proxy", "") + ",localhost,127.0.0.1"
 
@@ -63,7 +64,6 @@ SYSTEM_PROMPTS = {
     ),
     "Writer": (
         "你是专业文档撰写专家。根据 Planner 的计划和 Retriever 提供的资料撰写内容。\n"
-        "写作要求：结构清晰（标题/摘要/正文/结论）、语言专业、数据有据。\n"
         "使用 Markdown 格式输出，适当使用表格和列表。"
     ),
     "Tester": (

@@ -3,6 +3,7 @@
 
 复杂度：低 = 社交/通知类/HelloWorld | 高 = 完整页面/复杂算法
 """
+
 import json
 import logging
 import re
@@ -52,10 +53,7 @@ def classify(user_input: str, lane_mode: str = "auto") -> tuple[str, str, bool]:
       - "auto" → 不强制车道，由 LLM 判断
     """
     info = get_model_config("Planner")
-    logger.info(
-        "classify | input=%s | lane=%s | model=%s",
-        user_input[:60], lane_mode, info["model"]
-    )
+    logger.info("classify | input=%s | lane=%s | model=%s", user_input[:60], lane_mode, info["model"])
     payload = json.dumps(
         {
             "model": info["model"],
@@ -83,9 +81,7 @@ def classify(user_input: str, lane_mode: str = "auto") -> tuple[str, str, bool]:
         raw = data["choices"][0]["message"]["content"].strip()
         logger.info("classify | raw=%s", raw)
     except Exception as e:
-        logger.warning(
-            "classify | LLM call failed: %s, fallback to (闲聊,低,True)", e
-        )
+        logger.warning("classify | LLM call failed: %s, fallback to (闲聊,低,True)", e)
         return ("闲聊", "低", True)
 
     parts = [p.strip() for p in raw.replace("｜", "|").split("|")]
@@ -106,9 +102,7 @@ def classify(user_input: str, lane_mode: str = "auto") -> tuple[str, str, bool]:
             need_report = False
 
     # —— 关键词覆写 ——
-    _search = re.search(
-        r"(搜索|检索|查找.*知道|基于知识库)", user_input, re.IGNORECASE
-    )
+    _search = re.search(r"(搜索|检索|查找.*知道|基于知识库)", user_input, re.IGNORECASE)
     if _search and complexity == "低":
         complexity = "高"
         task_type = "写作"
@@ -134,17 +128,20 @@ def classify(user_input: str, lane_mode: str = "auto") -> tuple[str, str, bool]:
     if _search:
         logger.info(
             "classify | keyword_override=search | task_type=%s | complexity=%s",
-            task_type, complexity,
+            task_type,
+            complexity,
         )
     if _analysis:
         logger.info(
             "classify | keyword_override=analysis | task_type=%s | complexity=%s",
-            task_type, complexity,
+            task_type,
+            complexity,
         )
     if _non_py:
         logger.info(
             "classify | keyword_override=non_py | task_type=%s | complexity=%s",
-            task_type, complexity,
+            task_type,
+            complexity,
         )
 
     # —— 车道模式覆盖 ——
@@ -153,7 +150,5 @@ def classify(user_input: str, lane_mode: str = "auto") -> tuple[str, str, bool]:
     elif lane_mode == "slow":
         complexity = "高"
 
-    logger.info(
-        "classify | result=%s|%s|%s", task_type, complexity, need_report
-    )
+    logger.info("classify | result=%s|%s|%s", task_type, complexity, need_report)
     return (task_type, complexity, need_report)

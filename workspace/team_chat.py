@@ -1,6 +1,7 @@
 """
 团队聊天 API 路由 — 频道/消息/待办 + SSE 推送
 """
+
 import json
 import asyncio
 from fastapi import APIRouter, Request, Depends
@@ -27,6 +28,7 @@ async def _broadcast(org_id: str, event: dict):
 
 
 # ── 频道 ──
+
 
 @chat_router.get("/{org_id}/channels")
 async def list_channels(request: Request, org_id: str, user: dict = Depends(require_auth)):
@@ -57,9 +59,9 @@ async def create_channel(request: Request, org_id: str, user: dict = Depends(req
 
 # ── 消息 ──
 
+
 @chat_router.get("/{org_id}/channels/{channel_id}/messages")
-async def list_messages(request: Request, org_id: str, channel_id: str,
-                        user: dict = Depends(require_auth)):
+async def list_messages(request: Request, org_id: str, channel_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
     if role is None and not db.is_admin(user["user_id"]):
@@ -69,8 +71,7 @@ async def list_messages(request: Request, org_id: str, channel_id: str,
 
 
 @chat_router.post("/{org_id}/channels/{channel_id}/messages")
-async def send_message(request: Request, org_id: str, channel_id: str,
-                       user: dict = Depends(require_auth)):
+async def send_message(request: Request, org_id: str, channel_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
     if role is None:
@@ -99,11 +100,12 @@ async def send_message(request: Request, org_id: str, channel_id: str,
 
 async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> dict | None:
     import re
+
     channels = db.list_channels(org_id)
     default_channel = channels[0]["id"] if channels else ""
 
     # @agent 总结一下
-    if re.search(r'@agent\s*总结', content):
+    if re.search(r"@agent\s*总结", content):
         messages = []
         for ch in channels:
             msgs = db.list_messages(ch["id"], limit=20)
@@ -113,6 +115,7 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
         else:
             try:
                 from agents import get_cached_llm
+
                 llm = get_cached_llm("Summarizer", temperature=0.3)
                 prompt = f"请用中文简要总结以下团队讨论：\n\n" + "\n".join(messages[-20:])
                 summary = llm.invoke(prompt)
@@ -123,7 +126,7 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
         return {"id": mid, "content": content_text, "user_name": "🤖 Agent", "is_agent": 1}
 
     # @agent 创建待办: xxx @user
-    todo_match = re.search(r'创建待办[：:]\s*(.+?)(?:@(\S+))?\s*$', content)
+    todo_match = re.search(r"创建待办[：:]\s*(.+?)(?:@(\S+))?\s*$", content)
     if todo_match:
         todo_content = todo_match.group(1).strip()
         assignee_name = todo_match.group(2)
@@ -137,11 +140,12 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
         return {"id": mid, "content": content_text, "user_name": "🤖 Agent", "is_agent": 1}
 
     # @agent 搜索 xxx
-    search_match = re.search(r'@agent\s*搜索\s*(.+)', content)
+    search_match = re.search(r"@agent\s*搜索\s*(.+)", content)
     if search_match:
         query = search_match.group(1).strip()
         try:
             from rag.knowledge_base import search
+
             results = search(query, user_id="shared")
             if results and any(len(r.strip()) > 50 for r in results):
                 content_text = "🔍 搜索结果：\n\n" + "\n\n---\n\n".join(
@@ -158,6 +162,7 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
 
 
 # ── SSE 推送 ──
+
 
 @chat_router.get("/{org_id}/stream")
 async def stream_org(request: Request, org_id: str, user: dict = Depends(require_auth)):
@@ -195,6 +200,7 @@ async def stream_org(request: Request, org_id: str, user: dict = Depends(require
 
 # ── 待办 ──
 
+
 @chat_router.get("/{org_id}/todos")
 async def list_todos(request: Request, org_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
@@ -220,8 +226,7 @@ async def create_todo(request: Request, org_id: str, user: dict = Depends(requir
 
 
 @chat_router.put("/{org_id}/todos/{todo_id}")
-async def update_todo(request: Request, org_id: str, todo_id: str,
-                      user: dict = Depends(require_auth)):
+async def update_todo(request: Request, org_id: str, todo_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
     if role is None:
@@ -231,7 +236,5 @@ async def update_todo(request: Request, org_id: str, todo_id: str,
     content = data.get("content")
     if completed is None and content is None:
         return JSONResponse({"error": "无更新内容"}, status_code=400)
-    db.update_todo(todo_id,
-                   completed=int(completed) if completed is not None else None,
-                   content=content)
+    db.update_todo(todo_id, completed=int(completed) if completed is not None else None, content=content)
     return JSONResponse({"status": "ok"})

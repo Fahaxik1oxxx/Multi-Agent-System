@@ -2,6 +2,7 @@
 Multi-Agent API Router — Start/Subscribe/Cancel Streaming Agent Collaboration.
 所有端点均要求用户认证。
 """
+
 import uuid
 import json
 import time
@@ -24,6 +25,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     lane_mode: str = Field(default="auto")
+    project_id: str | None = Field(default=None)
     history: list = Field(default_factory=list)
 
 
@@ -49,6 +51,7 @@ async def chat_start(
         loop=asyncio.get_running_loop(),
         created_at=time.time(),
         user_id=user["user_id"],
+        db=getattr(request.app.state, "db", None),
     )
     sessions[session_id] = state
 

@@ -1,4 +1,4 @@
-import { useCallback, useRef, type DragEvent } from 'react';
+import { useCallback, useRef, useEffect, type DragEvent } from 'react';
 import {
   ReactFlow,
   Background,
@@ -97,9 +97,8 @@ export function Canvas({ pipeline, onChange }: CanvasProps) {
             : { routes: [] },
       };
       setNodes((nds) => [...nds, newNode]);
-      setTimeout(() => onChange(syncToParent()), 0);
     },
-    [setNodes, onChange, syncToParent]
+    [setNodes]
   );
 
   const onConnect = useCallback(
@@ -112,9 +111,8 @@ export function Canvas({ pipeline, onChange }: CanvasProps) {
         markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' },
       };
       setEdges((eds) => addEdge(newEdge, eds));
-      setTimeout(() => onChange(syncToParent()), 0);
     },
-    [setEdges, onChange, syncToParent]
+    [setEdges]
   );
 
   const onNodeDoubleClick = useCallback(
@@ -149,8 +147,11 @@ export function Canvas({ pipeline, onChange }: CanvasProps) {
       )
     );
     setRouterEdit(null);
-    setTimeout(() => onChange(syncToParent()), 0);
   };
+
+  useEffect(() => {
+    onChange(syncToParent());
+  }, [nodes, edges, syncToParent, onChange]);
 
   return (
     <div

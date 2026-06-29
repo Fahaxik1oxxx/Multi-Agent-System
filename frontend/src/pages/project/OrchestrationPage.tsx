@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projects';
@@ -35,7 +35,7 @@ export interface PipelineConfig {
 
 // ── Default pipeline ──
 
-const DEFAULT_PIPELINE: PipelineConfig = {
+export const DEFAULT_PIPELINE: PipelineConfig = {
   nodes: [
     { id: 'start', type: 'start', position: { x: 300, y: 0 }, data: {} },
     {
@@ -118,27 +118,48 @@ export function OrchestrationPage() {
     workspaceId: string;
     projectId: string;
   }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [pipeline, setPipeline] = useState<PipelineConfig>(DEFAULT_PIPELINE);
-  const [loaded, setLoaded] = useState(false);
-
-  const { isLoading } = useQuery({
+  
+  const { data, isLoading } = useQuery({
     queryKey: ['agent-config', projectId],
     queryFn: async () => {
       const res = await projectsApi.getAgentConfig(projectId!);
       return res.data;
     },
-    enabled: !!projectId && !loaded,
+    enabled: !!projectId,
   });
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <span className="loading loading-spinner loading-lg text-[#4f8cff]" />
+      </div>
+    );
+  }
+
+  return (
+    <OrchestrationEditor 
+      initialData={data} 
+      projectId={projectId!} 
+      workspaceId={workspaceId!} 
+    />
+  );
+}
+
+function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialData: any, projectId: string, workspaceId: string }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
+  // Initialize pipeline cleanly on mount
+  const initialPipeline = (initialData?.pipeline?.nodes && initialData.pipeline.nodes.length > 0)
+    ? (initialData.pipeline as PipelineConfig)
+    : DEFAULT_PIPELINE;
+    
+  const [pipeline, setPipeline] = useState<PipelineConfig>(initialPipeline);
+  const [pipelineKey, setPipelineKey] = useState(0);
 
   const saveMutation = useMutation({
     mutationFn: async (p: PipelineConfig) => {
-      const enabled = p.nodes
-        .filter((n) => n.type === 'agent')
-        .map((n) => n.data.agent!)
-        .filter(Boolean);
-      await projectsApi.updateAgentConfig(projectId!, enabled);
+      await projectsApi.updateAgentConfig(projectId, p);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-config', projectId] });
@@ -146,14 +167,6 @@ export function OrchestrationPage() {
     },
     onError: () => toast.error('保存失败'),
   });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <span className="loading loading-spinner loading-lg text-[#4f8cff]" />
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-full" style={{ background: '#fafbfc' }}>
@@ -182,6 +195,7 @@ export function OrchestrationPage() {
             style={{ borderRadius: '10px' }}
             onClick={() => {
               setPipeline(DEFAULT_PIPELINE);
+              setPipelineKey(k => k + 1);
               toast.success('已恢复默认');
             }}
           >
@@ -196,9 +210,7 @@ export function OrchestrationPage() {
         <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#eceef2] text-sm">
           <button
             className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() =>
-              navigate(`/w/${workspaceId}/p/${projectId}/chat`)
-            }
+            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/chat`)}
           >
             💬 对话
           </button>
@@ -207,23 +219,19 @@ export function OrchestrationPage() {
           <span className="text-[#d0d4d8]">|</span>
           <button
             className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() =>
-              navigate(`/w/${workspaceId}/p/${projectId}/monitor`)
-            }
+            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/monitor`)}
           >
             📡 监控
           </button>
           <span className="text-[#d0d4d8]">|</span>
           <button
             className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() =>
-              navigate(`/w/${workspaceId}/p/${projectId}/eval`)
-            }
+            onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/eval`)}
           >
             📊 仪表盘
           </button>
         </div>
-        <Canvas pipeline={pipeline} onChange={setPipeline} />
+        <Canvas key={pipelineKey} pipeline={pipeline} onChange={setPipeline} />
       </div>
     </div>
   );

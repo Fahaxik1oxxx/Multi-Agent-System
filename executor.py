@@ -45,18 +45,32 @@ class CodeExecutor:
             f.write(code)
 
         try:
-            result = subprocess.run([
-                "docker", "run", "--rm",
-                "--name", container_name,
-                "--network", "none",
-                "--memory", "256m",
-                "--cpus", "0.5",
-                "--read-only",
-                "--tmpfs", "/tmp:exec",
-                "-v", f"{os.path.abspath(filepath)}:/code.py:ro",
-                "python:3.11-slim",
-                "python", "/code.py",
-            ], capture_output=True, text=True, timeout=self.TIMEOUT)
+            result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    container_name,
+                    "--network",
+                    "none",
+                    "--memory",
+                    "256m",
+                    "--cpus",
+                    "0.5",
+                    "--read-only",
+                    "--tmpfs",
+                    "/tmp:exec",
+                    "-v",
+                    f"{os.path.abspath(filepath)}:/code.py:ro",
+                    "python:3.11-slim",
+                    "python",
+                    "/code.py",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=self.TIMEOUT,
+            )
             return {
                 "stdout": result.stdout,
                 "stderr": result.stderr,
@@ -80,8 +94,10 @@ class CodeExecutor:
         try:
             result = subprocess.run(
                 ["python", filepath],
-                capture_output=True, text=True,
-                timeout=self.TIMEOUT, cwd=WORKSPACE,
+                capture_output=True,
+                text=True,
+                timeout=self.TIMEOUT,
+                cwd=WORKSPACE,
             )
             return {
                 "stdout": result.stdout,

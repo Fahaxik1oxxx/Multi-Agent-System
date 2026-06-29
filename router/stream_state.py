@@ -1,9 +1,11 @@
 """
 流式状态基类与工具，管理 SSE 推送队列
 """
+
 import asyncio
 import threading
 from dataclasses import dataclass
+from typing import Any
 
 _DONE = object()
 
@@ -15,6 +17,7 @@ class SessionState:
     loop: asyncio.AbstractEventLoop
     created_at: float
     user_id: str = ""
+    db: Any = None
 
 
 def push(state: SessionState, event: dict):

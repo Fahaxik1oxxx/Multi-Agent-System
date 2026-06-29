@@ -9,6 +9,7 @@ ChromaDB 知识库封装 —— 建库、检索、文档管理。
 
 import os
 import shutil
+
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -83,6 +84,7 @@ def build_index(user_id: str):
             break
         except PermissionError:
             import time
+
             time.sleep(0.3)
     # 清理 ChromaDB 1.5 的 UUID 子目录（存放向量数据）
     for item in os.listdir(persist_dir):
@@ -107,7 +109,8 @@ def build_index(user_id: str):
 
     # 4. 切分
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300, chunk_overlap=50,
+        chunk_size=300,
+        chunk_overlap=50,
         separators=["\n\n", "\n", "。", "！", "？", " ", ""],
     )
     chunks = splitter.split_documents(docs)
@@ -138,7 +141,7 @@ def search(query: str, user_id: str, k: int = 3, min_score: float = 0.40) -> lis
             continue
         page = d.metadata.get("page", "?")
         content = d.page_content[:300]  # 截断避免过长
-        result.append(f"[第{page+1}页, 相关度{score:.2f}] {content}")
+        result.append(f"[第{page + 1}页, 相关度{score:.2f}] {content}")
     return result
 
 
@@ -147,8 +150,7 @@ def get_document_list(user_id: str) -> list[str]:
     docs_dir, _ = _get_user_dirs(user_id)
     if not os.path.exists(docs_dir):
         return []
-    return [f for f in os.listdir(docs_dir)
-            if f.endswith((".pdf", ".txt"))]
+    return [f for f in os.listdir(docs_dir) if f.endswith((".pdf", ".txt"))]
 
 
 def get_stats(user_id: str) -> dict:

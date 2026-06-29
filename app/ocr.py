@@ -65,4 +65,5 @@ def ocr_and_index(uploaded_file) -> int:
         f.write(text)
 
     from rag.knowledge_base import build_index
+
     return build_index(user_id="shared")

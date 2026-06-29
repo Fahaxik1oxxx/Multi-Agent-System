@@ -17,6 +17,7 @@ user_router = APIRouter()
 
 # ──── 认证 ────
 
+
 @auth_router.post("/register")
 async def register(request: Request):
     data = await request.json()
@@ -72,13 +73,17 @@ async def verify(request: Request, user: dict = Depends(require_auth)):
 @auth_router.get("/system-config")
 async def get_system_config():
     import config as _cfg
-    return JSONResponse({
-        "default_roles": _cfg.ROLE_MODEL,
-        "model_pool": _cfg.MODEL_POOL,
-    })
+
+    return JSONResponse(
+        {
+            "default_roles": _cfg.ROLE_MODEL,
+            "model_pool": _cfg.MODEL_POOL,
+        }
+    )
 
 
 # ──── 会话 ────
+
 
 @session_router.get("")
 async def list_sessions(request: Request, user: dict = Depends(require_auth)):
@@ -96,12 +101,14 @@ async def list_sessions(request: Request, user: dict = Depends(require_auth)):
             if c:
                 first = c[:50]
                 break
-        result.append({
-            "id": r["id"],
-            "title": first or r["title"] or "空对话",
-            "count": len(msgs),
-            "updated": r["updated_at"] or "",
-        })
+        result.append(
+            {
+                "id": r["id"],
+                "title": first or r["title"] or "空对话",
+                "count": len(msgs),
+                "updated": r["updated_at"] or "",
+            }
+        )
     return JSONResponse(result)
 
 
@@ -120,6 +127,7 @@ async def search_sessions(
 
 
 # ─── 以下为原有的 C(R)UD 路由 ───
+
 
 @session_router.post("")
 async def save_session(request: Request, user: dict = Depends(require_auth)):
@@ -156,19 +164,23 @@ async def delete_session(request: Request, session_id: str, user: dict = Depends
 
 # ──── 用户配置 ────
 
+
 @user_router.get("/config")
 async def get_config(request: Request, user: dict = Depends(require_auth)):
     import config as _cfg
+
     roles = dict(_cfg.ROLE_MODEL)
     db = _get_db(request)
     cfg = db.get_user_config(user["user_id"])
     if cfg:
         roles.update(cfg.get("roles", {}))
-    return JSONResponse({
-        "roles": roles,
-        "models": cfg["models"] if cfg else [],
-        "system_models": _cfg.MODEL_POOL,
-    })
+    return JSONResponse(
+        {
+            "roles": roles,
+            "models": cfg["models"] if cfg else [],
+            "system_models": _cfg.MODEL_POOL,
+        }
+    )
 
 
 @user_router.put("/config")
@@ -198,15 +210,16 @@ async def add_custom_model(request: Request, user: dict = Depends(require_auth))
         return JSONResponse({"error": "API Key 不能为空"}, status_code=400)
 
     import config as _cfg
+
     if key in _cfg.MODEL_POOL:
-        return JSONResponse({"error": f"标识 \"{key}\" 与系统模型冲突"}, status_code=409)
+        return JSONResponse({"error": f'标识 "{key}" 与系统模型冲突'}, status_code=409)
 
     db = _get_db(request)
     cfg = db.get_user_config(user["user_id"])
     models = cfg["models"] if cfg else []
     for m in models:
         if m["key"] == key:
-            return JSONResponse({"error": f"自定义模型标识 \"{key}\" 已存在"}, status_code=409)
+            return JSONResponse({"error": f'自定义模型标识 "{key}" 已存在'}, status_code=409)
 
     models.append({"key": key, "model": model, "base_url": base_url, "api_key": api_key})
     roles = cfg["roles"] if cfg else {}
@@ -223,7 +236,7 @@ async def delete_custom_model(request: Request, model_key: str, user: dict = Dep
     original = len(cfg["models"])
     cfg["models"] = [m for m in cfg["models"] if m["key"] != model_key]
     if len(cfg["models"]) == original:
-        return JSONResponse({"error": f"自定义模型 \"{model_key}\" 不存在"}, status_code=404)
+        return JSONResponse({"error": f'自定义模型 "{model_key}" 不存在'}, status_code=404)
 
     db.upsert_user_config(user["user_id"], cfg["roles"], cfg["models"])
     return JSONResponse({"status": "ok"})
@@ -231,17 +244,20 @@ async def delete_custom_model(request: Request, model_key: str, user: dict = Dep
 
 # ──── 用户 Profile ────
 
+
 @user_router.get("/profile")
 async def get_profile(request: Request, user: dict = Depends(require_auth)):
     db = _get_db(request)
     u = db.get_user_by_id(user["user_id"])
     is_admin = db.is_admin(user["user_id"])
-    return JSONResponse({
-        "user_id": u["id"],
-        "user_name": u["name"],
-        "is_admin": is_admin,
-        "created_at": u.get("created_at", ""),
-    })
+    return JSONResponse(
+        {
+            "user_id": u["id"],
+            "user_name": u["name"],
+            "is_admin": is_admin,
+            "created_at": u.get("created_at", ""),
+        }
+    )
 
 
 @user_router.put("/profile")
@@ -276,6 +292,7 @@ async def update_profile(request: Request, user: dict = Depends(require_auth)):
 
 # ──── API Key 管理 ────
 
+
 @user_router.get("/api-key")
 async def get_api_key(request: Request, user: dict = Depends(require_auth)):
     """返回用户自定义 API Key 的状态（不返回完整 Key）"""
@@ -288,10 +305,12 @@ async def get_api_key(request: Request, user: dict = Depends(require_auth)):
     if has_custom and custom.get("api_key"):
         raw = custom["api_key"]
         key_prefix = raw[:7] + "..." if len(raw) > 7 else raw[:3] + "..."
-    return JSONResponse({
-        "has_custom_key": has_custom,
-        "key_prefix": key_prefix,
-    })
+    return JSONResponse(
+        {
+            "has_custom_key": has_custom,
+            "key_prefix": key_prefix,
+        }
+    )
 
 
 @user_router.put("/api-key")
@@ -312,12 +331,14 @@ async def update_api_key(request: Request, user: dict = Depends(require_auth)):
     if existing:
         existing["api_key"] = api_key
     else:
-        models.append({
-            "key": "a-deepseek",
-            "model": "deepseek-v4-flash",
-            "base_url": "https://api.deepseek.com/v1",
-            "api_key": api_key,
-        })
+        models.append(
+            {
+                "key": "a-deepseek",
+                "model": "deepseek-v4-flash",
+                "base_url": "https://api.deepseek.com/v1",
+                "api_key": api_key,
+            }
+        )
 
     db.upsert_user_config(user["user_id"], roles, models)
     return JSONResponse({"status": "ok"})

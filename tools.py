@@ -4,6 +4,7 @@
 """
 
 import os
+
 os.environ["HF_ENDPOINT"] = os.getenv("HF_ENDPOINT", "https://hf-mirror.com")
 
 from langchain.tools import tool
@@ -19,6 +20,7 @@ def _resolve_path(path: str) -> str:
 
 
 # ===== 文件读写 =====
+
 
 @tool
 def read_file(path: str) -> str:
@@ -42,11 +44,13 @@ def write_file(path: str, content: str) -> str:
 
 # ===== 知识库检索 =====
 
+
 @tool
 def search_knowledge(query: str) -> str:
     """在知识库中搜索相关文档。输入查询字符串，返回相关文本片段（最多3条）。"""
     try:
         from rag.knowledge_base import search
+
         results = search(query, user_id="shared")
         if not results:
             return "知识库中未找到相关信息，请使用自身知识完成任务。"
@@ -60,18 +64,32 @@ def search_knowledge(query: str) -> str:
 
 # ===== 计算器 =====
 
+
 @tool
 def calculate(expression: str) -> str:
     """安全计算数学表达式。支持 +, -, *, /, **, %, 以及 abs/round/min/max/pow/int/float。参数 expression: 数学表达式字符串，如 '2+3*4'"""
     import ast
     import operator as _op
 
-    _SAFE_BUILTINS = {"abs": abs, "round": round, "min": min, "max": max,
-                      "pow": pow, "int": int, "float": float, "len": len}
+    _SAFE_BUILTINS = {
+        "abs": abs,
+        "round": round,
+        "min": min,
+        "max": max,
+        "pow": pow,
+        "int": int,
+        "float": float,
+        "len": len,
+    }
     _SAFE_OPS = {
-        ast.Add: _op.add, ast.Sub: _op.sub, ast.Mult: _op.mul,
-        ast.Div: _op.truediv, ast.FloorDiv: _op.floordiv,
-        ast.Mod: _op.mod, ast.Pow: _op.pow, ast.USub: _op.neg,
+        ast.Add: _op.add,
+        ast.Sub: _op.sub,
+        ast.Mult: _op.mul,
+        ast.Div: _op.truediv,
+        ast.FloorDiv: _op.floordiv,
+        ast.Mod: _op.mod,
+        ast.Pow: _op.pow,
+        ast.USub: _op.neg,
     }
 
     def _eval(node):
@@ -105,6 +123,7 @@ def calculate(expression: str) -> str:
 
 
 # ===== 数据分析 =====
+
 
 @tool
 def analyze_data(path: str, group_by: str = "", agg_col: str = "") -> str:
@@ -143,9 +162,11 @@ def analyze_data(path: str, group_by: str = "", agg_col: str = "") -> str:
 
 # ===== 数据可视化 (Pillow) =====
 
+
 @tool
-def visualize_data(path: str, chart_type: str = "bar", save_as: str = "chart.png",
-                   group_by: str = "", agg_col: str = "") -> str:
+def visualize_data(
+    path: str, chart_type: str = "bar", save_as: str = "chart.png", group_by: str = "", agg_col: str = ""
+) -> str:
     """读取 CSV 用 Pillow 绘制统计图表（柱状图/折线图）并保存。
     参数 path: CSV 文件路径, chart_type: 'bar'或'line', save_as: 输出文件名,
     group_by: 分组列名（留空自动选）, agg_col: 汇总列名（留空自动选）"""
@@ -162,20 +183,24 @@ def visualize_data(path: str, chart_type: str = "bar", save_as: str = "chart.png
     except ImportError:
         return "[错误] Pillow 未安装，请执行 pip install Pillow"
 
-    _FONT_PATHS = os.environ.get("FONT_PATH", "").split(os.pathsep) if os.environ.get("FONT_PATH") else [
-        # Windows
-        "C:/Windows/Fonts/msyh.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
-        "C:/Windows/Fonts/simsun.ttc",
-        # macOS
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/Library/Fonts/Arial Unicode.ttf",
-        # Linux
-        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    ]
+    _FONT_PATHS = (
+        os.environ.get("FONT_PATH", "").split(os.pathsep)
+        if os.environ.get("FONT_PATH")
+        else [
+            # Windows
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+            "C:/Windows/Fonts/simsun.ttc",
+            # macOS
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            "/Library/Fonts/Arial Unicode.ttf",
+            # Linux
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        ]
+    )
     _cjk_font = None
     _title_font = None
     for fp in _FONT_PATHS:
@@ -264,6 +289,7 @@ def visualize_data(path: str, chart_type: str = "bar", save_as: str = "chart.png
 
 # ===== OCR (Tesseract) =====
 
+
 @tool
 def ocr_image(image_path: str, language: str = "chi_sim+eng") -> str:
     """从图片中提取文字（OCR）。支持中英文混合识别。
@@ -288,12 +314,14 @@ def ocr_image(image_path: str, language: str = "chi_sim+eng") -> str:
 
 # ===== 网络搜索 =====
 
+
 @tool
 def web_search(query: str, max_results: int = 5) -> str:
     """搜索网络，返回前 max_results 条结果的标题和摘要。
     参数 query: 搜索关键词, max_results: 返回结果数（默认5，最多10）"""
     try:
         from duckduckgo_search import DDGS
+
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=min(max_results, 10)))
         if not results:

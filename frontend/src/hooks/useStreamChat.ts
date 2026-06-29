@@ -45,6 +45,7 @@ export function useStreamChat() {
   const startStream = useCallback(async (
     message: string,
     laneMode: string = 'auto',
+    projectId?: string,
     onComplete?: (reply: string, thinking: Array<{name: string; content: string}>, taskType: string) => void,
   ) => {
     // Store callback for use in processEvent
@@ -68,6 +69,7 @@ export function useStreamChat() {
       const startResp = await apiClient.post('/chat/start', {
         message,
         lane_mode: laneMode,
+        project_id: projectId,
         history: [],
       });
       const { session_id } = startResp.data;

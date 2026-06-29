@@ -1,5 +1,6 @@
 import io
 import os, sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import uuid
@@ -15,9 +16,7 @@ def _auth(token: str) -> dict:
 def _register(client, suffix: str = ""):
     """注册测试用户，返回 (token, user_id)"""
     name = f"test_{suffix}_{uuid.uuid4().hex[:6]}"
-    resp = client.post("/api/auth/register", json={
-        "name": name, "email": f"{name}@t.com", "password": "test1234"
-    })
+    resp = client.post("/api/auth/register", json={"name": name, "email": f"{name}@t.com", "password": "test1234"})
     assert resp.status_code == 200, f"注册失败 ({name}): {resp.json()}"
     data = resp.json()
     return data["token"], data["user_id"]
@@ -32,12 +31,8 @@ def test_auth_register():
 def test_auth_login():
     with TestClient(app) as client:
         name = f"login_{uuid.uuid4().hex[:6]}"
-        client.post("/api/auth/register", json={
-            "name": name, "email": f"{name}@t.com", "password": "pass1234"
-        })
-        resp = client.post("/api/auth/login", json={
-            "name": name, "password": "pass1234"
-        })
+        client.post("/api/auth/register", json={"name": name, "email": f"{name}@t.com", "password": "pass1234"})
+        resp = client.post("/api/auth/login", json={"name": name, "password": "pass1234"})
         assert resp.status_code == 200
         assert "token" in resp.json()
 

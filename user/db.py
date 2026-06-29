@@ -39,24 +39,19 @@ class Database:
             """)
 
             # 2. 读取当前数据库版本（无记录则为 0）
-            row = conn.execute(
-                "SELECT MAX(version) FROM schema_version"
-            ).fetchone()
+            row = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
             current = row[0] if row[0] is not None else 0
 
             # 3. 版本超前检查
             if current > self.TARGET_SCHEMA_VERSION:
                 raise RuntimeError(
-                    f"数据库 schema 版本 {current} 高于代码版本 "
-                    f"{self.TARGET_SCHEMA_VERSION}，请升级代码或回滚数据库。"
+                    f"数据库 schema 版本 {current} 高于代码版本 {self.TARGET_SCHEMA_VERSION}，请升级代码或回滚数据库。"
                 )
 
             # 4. 执行缺失的迁移
             for v in range(current + 1, self.TARGET_SCHEMA_VERSION + 1):
                 self._run_migration(conn, v)
-                conn.execute(
-                    "INSERT INTO schema_version (version) VALUES (?)", (v,)
-                )
+                conn.execute("INSERT INTO schema_version (version) VALUES (?)", (v,))
 
     def _run_migration(self, conn, version: int):
         """执行指定版本的数据库迁移（幂等 — 全部使用 IF NOT EXISTS）"""
@@ -99,9 +94,8 @@ class Database:
             conn.execute("DELETE FROM messages_fts")
             # 回填已有会话
             import json as _json
-            rows = conn.execute(
-                "SELECT id, user_id, messages FROM sessions"
-            ).fetchall()
+
+            rows = conn.execute("SELECT id, user_id, messages FROM sessions").fetchall()
             for r in rows:
                 try:
                     msgs = _json.loads(r["messages"])
@@ -109,7 +103,7 @@ class Database:
                     continue
                 for i, msg in enumerate(msgs):
                     content = (msg.get("content", "") or "").strip()
-                    role = (msg.get("role", "") or "")
+                    role = msg.get("role", "") or ""
                     if content:
                         conn.execute(
                             "INSERT INTO messages_fts"
@@ -216,27 +210,25 @@ class Database:
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
-    def _sync_fts(self, conn, session_id: str, user_id: str,
-                  messages: list[dict]) -> None:
+    def _sync_fts(self, conn, session_id: str, user_id: str, messages: list[dict]) -> None:
         """先删后插，将 messages 同步到 messages_fts。
         调用方必须在同一个 with self._conn() 事务内传入 conn。"""
-        conn.execute(
-            "DELETE FROM messages_fts WHERE session_id = ?", (session_id,)
-        )
+        conn.execute("DELETE FROM messages_fts WHERE session_id = ?", (session_id,))
         for i, msg in enumerate(messages):
             content = (msg.get("content", "") or "").strip()
-            role = (msg.get("role", "") or "")
+            role = msg.get("role", "") or ""
             if content:
                 conn.execute(
-                    "INSERT INTO messages_fts"
-                    "(session_id, user_id, msg_index, role, content) "
-                    "VALUES (?, ?, ?, ?, ?)",
+                    "INSERT INTO messages_fts(session_id, user_id, msg_index, role, content) VALUES (?, ?, ?, ?, ?)",
                     (session_id, user_id, i, role, content),
                 )
 
     def search_messages(
-        self, user_id: str, query: str,
-        limit: int = 20, offset: int = 0,
+        self,
+        user_id: str,
+        query: str,
+        limit: int = 20,
+        offset: int = 0,
     ) -> list[dict]:
         """全文检索用户会话消息。
 
@@ -259,11 +251,7 @@ class Database:
         has_non_ascii = any(ord(ch) > 127 for ch in q)
         if has_non_ascii:
             # LIKE 回退路径：转义 LIKE 元字符（\ % _）
-            escaped = (
-                q.replace('\\', '\\\\')
-                 .replace('%', '\\%')
-                 .replace('_', '\\_')
-            )
+            escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             sql = (
                 "SELECT session_id, msg_index, role, "
                 "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
@@ -273,7 +261,7 @@ class Database:
                 "ORDER BY msg_index "
                 "LIMIT ? OFFSET ?"
             )
-            params = (user_id, f'%{escaped}%', limit, offset)
+            params = (user_id, f"%{escaped}%", limit, offset)
         else:
             # FTS5 MATCH 路径：转义双引号（FTS5 短语语法）
             escaped = q.replace('"', '""')
@@ -292,11 +280,7 @@ class Database:
                 rows = conn.execute(sql, params).fetchall()
             except sqlite3.OperationalError:
                 # FTS5 MATCH 语法错误 → 回退 LIKE（无高亮、无 rank 排序）
-                escaped = (
-                    q.replace('\\', '\\\\')
-                     .replace('%', '\\%')
-                     .replace('_', '\\_')
-                )
+                escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 sql = (
                     "SELECT session_id, msg_index, role, "
                     "snippet(messages_fts, 4, '<mark>', '</mark>', '...', 40) "
@@ -306,7 +290,7 @@ class Database:
                     "ORDER BY msg_index "
                     "LIMIT ? OFFSET ?"
                 )
-                params = (user_id, f'%{escaped}%', limit, offset)
+                params = (user_id, f"%{escaped}%", limit, offset)
                 rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
@@ -339,9 +323,7 @@ class Database:
     def get_user(self, name: str) -> dict | None:
         """按名称查找用户。返回 {"id", "name", "password"} 或 None。"""
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT id, name, password, is_admin FROM users WHERE name = ?", (name,)
-            ).fetchone()
+            row = conn.execute("SELECT id, name, password, is_admin FROM users WHERE name = ?", (name,)).fetchone()
             if row:
                 return dict(row)
             return None
@@ -349,9 +331,7 @@ class Database:
     def get_user_by_id(self, user_id: str) -> dict | None:
         """按 ID 查找用户。返回 {"id", "name", "created_at"} 或 None。"""
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT id, name, created_at FROM users WHERE id = ?", (user_id,)
-            ).fetchone()
+            row = conn.execute("SELECT id, name, created_at FROM users WHERE id = ?", (user_id,)).fetchone()
             if row:
                 return dict(row)
             return None
@@ -361,8 +341,7 @@ class Database:
     def list_sessions(self, user_id: str) -> list[dict]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT id, title, messages, updated_at FROM sessions "
-                "WHERE user_id = ? ORDER BY updated_at DESC",
+                "SELECT id, title, messages, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC",
                 (user_id,),
             ).fetchall()
             return [dict(r) for r in rows]
@@ -386,13 +365,10 @@ class Database:
                 "updated": row["updated_at"] or "",
             }
 
-    def upsert_session(self, session_id: str, user_id: str,
-                       messages: list[dict], title: str = "") -> str:
+    def upsert_session(self, session_id: str, user_id: str, messages: list[dict], title: str = "") -> str:
         msgs_json = json.dumps(messages, ensure_ascii=False)
         with self._conn() as conn:
-            existing = conn.execute(
-                "SELECT id FROM sessions WHERE id = ?", (session_id,)
-            ).fetchone()
+            existing = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
             if existing:
                 conn.execute(
                     "UPDATE sessions SET user_id=?, title=?, messages=?, "
@@ -401,8 +377,7 @@ class Database:
                 )
             else:
                 conn.execute(
-                    "INSERT INTO sessions (id, user_id, title, messages) "
-                    "VALUES (?, ?, ?, ?)",
+                    "INSERT INTO sessions (id, user_id, title, messages) VALUES (?, ?, ?, ?)",
                     (session_id, user_id, title, msgs_json),
                 )
             # 同步 FTS5（同一事务内）
@@ -411,9 +386,7 @@ class Database:
 
     def delete_session(self, session_id: str) -> bool:
         with self._conn() as conn:
-            cur = conn.execute(
-                "DELETE FROM sessions WHERE id = ?", (session_id,)
-            )
+            cur = conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             if cur.rowcount > 0:
                 conn.execute(
                     "DELETE FROM messages_fts WHERE session_id = ?",
@@ -428,13 +401,11 @@ class Database:
         wid = str(uuid.uuid4())[:8]
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO workspaces (id, name, description, owner_id) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO workspaces (id, name, description, owner_id) VALUES (?, ?, ?, ?)",
                 (wid, name, description, owner_id),
             )
             conn.execute(
-                "INSERT INTO workspace_members (workspace_id, user_id, role) "
-                "VALUES (?, ?, 'owner')",
+                "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, 'owner')",
                 (wid, owner_id),
             )
         return wid
@@ -442,8 +413,7 @@ class Database:
     def get_workspace(self, workspace_id: str) -> dict | None:
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT id, name, description, owner_id, is_public, created_at "
-                "FROM workspaces WHERE id = ?",
+                "SELECT id, name, description, owner_id, is_public, created_at FROM workspaces WHERE id = ?",
                 (workspace_id,),
             ).fetchone()
             return dict(row) if row else None
@@ -469,16 +439,12 @@ class Database:
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         values = list(updates.values()) + [workspace_id]
         with self._conn() as conn:
-            cur = conn.execute(
-                f"UPDATE workspaces SET {set_clause} WHERE id = ?", values
-            )
+            cur = conn.execute(f"UPDATE workspaces SET {set_clause} WHERE id = ?", values)
             return cur.rowcount > 0
 
     def delete_workspace(self, workspace_id: str) -> bool:
         with self._conn() as conn:
-            cur = conn.execute(
-                "DELETE FROM workspaces WHERE id = ?", (workspace_id,)
-            )
+            cur = conn.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
             return cur.rowcount > 0
 
     # ── 成员管理 ──
@@ -487,8 +453,7 @@ class Database:
         with self._conn() as conn:
             try:
                 conn.execute(
-                    "INSERT INTO workspace_members (workspace_id, user_id, role) "
-                    "VALUES (?, ?, ?)",
+                    "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)",
                     (workspace_id, user_id, role),
                 )
                 return True
@@ -498,8 +463,7 @@ class Database:
     def remove_member(self, workspace_id: str, user_id: str) -> bool:
         with self._conn() as conn:
             cur = conn.execute(
-                "DELETE FROM workspace_members "
-                "WHERE workspace_id = ? AND user_id = ? AND role != 'owner'",
+                "DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND role != 'owner'",
                 (workspace_id, user_id),
             )
             return cur.rowcount > 0
@@ -519,21 +483,18 @@ class Database:
     def get_member_role(self, workspace_id: str, user_id: str) -> str | None:
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT role FROM workspace_members "
-                "WHERE workspace_id = ? AND user_id = ?",
+                "SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?",
                 (workspace_id, user_id),
             ).fetchone()
             return row["role"] if row else None
 
     # ── 项目 ──
 
-    def create_project(self, workspace_id: str, name: str,
-                       description: str, created_by: str) -> str:
+    def create_project(self, workspace_id: str, name: str, description: str, created_by: str) -> str:
         pid = str(uuid.uuid4())[:8]
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO projects (id, workspace_id, name, description, created_by) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO projects (id, workspace_id, name, description, created_by) VALUES (?, ?, ?, ?, ?)",
                 (pid, workspace_id, name, description, created_by),
             )
         return pid
@@ -551,7 +512,7 @@ class Database:
     def list_projects(self, workspace_id: str) -> list[dict]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT id, name, description, created_by, created_at "
+                "SELECT id, name, description, agent_config, created_by, created_at "
                 "FROM projects WHERE workspace_id = ? "
                 "ORDER BY created_at DESC",
                 (workspace_id,),
@@ -566,16 +527,12 @@ class Database:
         set_clause = ", ".join(f"{k} = ?" for k in updates)
         values = list(updates.values()) + [project_id]
         with self._conn() as conn:
-            cur = conn.execute(
-                f"UPDATE projects SET {set_clause} WHERE id = ?", values
-            )
+            cur = conn.execute(f"UPDATE projects SET {set_clause} WHERE id = ?", values)
             return cur.rowcount > 0
 
     def delete_project(self, project_id: str) -> bool:
         with self._conn() as conn:
-            cur = conn.execute(
-                "DELETE FROM projects WHERE id = ?", (project_id,)
-            )
+            cur = conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             return cur.rowcount > 0
 
     # ── 管理员 ──
@@ -590,33 +547,35 @@ class Database:
 
     def is_admin(self, user_id: str) -> bool:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT is_admin FROM users WHERE id = ?", (user_id,)
-            ).fetchone()
+            row = conn.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,)).fetchone()
             return bool(row["is_admin"]) if row else False
 
     def list_all_users(self) -> list[dict]:
         """管理员接口：列出所有用户"""
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT id, name, is_admin, created_at FROM users ORDER BY created_at"
-            ).fetchall()
+            rows = conn.execute("SELECT id, name, is_admin, created_at FROM users ORDER BY created_at").fetchall()
             return [dict(r) for r in rows]
 
     # ── 评估日志 ──
 
-    def create_eval_log(self, project_id: str, session_id: str = "",
-                        task_type: str = "", complexity: str = "",
-                        agent_count: int = 0, total_tokens: int = 0,
-                        elapsed_ms: int = 0, has_error: int = 0) -> str:
+    def create_eval_log(
+        self,
+        project_id: str,
+        session_id: str = "",
+        task_type: str = "",
+        complexity: str = "",
+        agent_count: int = 0,
+        total_tokens: int = 0,
+        elapsed_ms: int = 0,
+        has_error: int = 0,
+    ) -> str:
         eid = str(uuid.uuid4())[:8]
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO eval_logs (id, project_id, session_id, task_type, "
                 "complexity, agent_count, total_tokens, elapsed_ms, has_error) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (eid, project_id, session_id, task_type, complexity,
-                 agent_count, total_tokens, elapsed_ms, has_error),
+                (eid, project_id, session_id, task_type, complexity, agent_count, total_tokens, elapsed_ms, has_error),
             )
         return eid
 
@@ -626,20 +585,30 @@ class Database:
             params = (project_id,) if project_id else ()
             total = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where}", params).fetchone()[0]
             if total == 0:
-                return {"total": 0, "avg_elapsed_ms": 0, "total_tokens": 0,
-                        "error_rate": 0, "task_types": {}, "daily": []}
+                return {
+                    "total": 0,
+                    "avg_elapsed_ms": 0,
+                    "total_tokens": 0,
+                    "error_rate": 0,
+                    "task_types": {},
+                    "daily": [],
+                }
             avg_elapsed = conn.execute(f"SELECT AVG(elapsed_ms) FROM eval_logs {where}", params).fetchone()[0] or 0
             sum_tokens = conn.execute(f"SELECT SUM(total_tokens) FROM eval_logs {where}", params).fetchone()[0] or 0
-            error_count = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where} AND has_error = 1", params).fetchone()[0]
+            error_count = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where} AND has_error = 1", params).fetchone()[
+                0
+            ]
             task_type_rows = conn.execute(
                 f"SELECT task_type, COUNT(*) as cnt FROM eval_logs {where} GROUP BY task_type ORDER BY cnt DESC", params
             ).fetchall()
             daily_rows = conn.execute(
                 f"SELECT DATE(created_at) as day, COUNT(*) as cnt, AVG(elapsed_ms) as avg_ms "
-                f"FROM eval_logs {where} GROUP BY day ORDER BY day DESC LIMIT 14", params
+                f"FROM eval_logs {where} GROUP BY day ORDER BY day DESC LIMIT 14",
+                params,
             ).fetchall()
             return {
-                "total": total, "avg_elapsed_ms": round(avg_elapsed),
+                "total": total,
+                "avg_elapsed_ms": round(avg_elapsed),
                 "total_tokens": sum_tokens,
                 "error_rate": round(error_count / total * 100, 1) if total > 0 else 0,
                 "task_types": {r["task_type"]: r["cnt"] for r in task_type_rows},
@@ -650,9 +619,7 @@ class Database:
 
     def get_user_config(self, user_id: str) -> dict | None:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT roles, models FROM user_configs WHERE user_id = ?", (user_id,)
-            ).fetchone()
+            row = conn.execute("SELECT roles, models FROM user_configs WHERE user_id = ?", (user_id,)).fetchone()
             if not row:
                 return None
             return {
@@ -683,8 +650,9 @@ class Database:
 
     def create_organization(self, name: str, description: str, owner_id: str) -> str:
         import secrets, string
+
         oid = str(uuid.uuid4())
-        code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+        code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(6))
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO organizations (id, name, description, invite_code, owner_id) VALUES (?,?,?,?,?)",
@@ -692,19 +660,22 @@ class Database:
             )
             conn.execute(
                 "INSERT INTO org_members (org_id, user_id, role) VALUES (?,?,?)",
-                (oid, owner_id, 'owner'),
+                (oid, owner_id, "owner"),
             )
         return oid
 
     def list_organizations(self, user_id: str) -> list:
         with self._conn() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT o.*, om.role as my_role,
                        (SELECT COUNT(*) FROM org_members WHERE org_id = o.id) as member_count
                 FROM organizations o
                 JOIN org_members om ON o.id = om.org_id AND om.user_id = ?
                 ORDER BY o.created_at DESC
-            """, (user_id,)).fetchall()
+            """,
+                (user_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
     def get_organization(self, org_id: str):
@@ -717,7 +688,7 @@ class Database:
             row = conn.execute("SELECT * FROM organizations WHERE invite_code = ?", (code,)).fetchone()
         return dict(row) if row else None
 
-    def join_organization(self, org_id: str, user_id: str, role: str = 'member') -> bool:
+    def join_organization(self, org_id: str, user_id: str, role: str = "member") -> bool:
         with self._conn() as conn:
             existing = conn.execute(
                 "SELECT 1 FROM org_members WHERE org_id = ? AND user_id = ?", (org_id, user_id)
@@ -732,11 +703,14 @@ class Database:
 
     def list_org_members(self, org_id: str) -> list:
         with self._conn() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT om.*, u.name as user_name
                 FROM org_members om JOIN users u ON om.user_id = u.id
                 WHERE om.org_id = ?
-            """, (org_id,)).fetchall()
+            """,
+                (org_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
     def get_org_member_role(self, org_id: str, user_id: str):
@@ -757,7 +731,9 @@ class Database:
 
     def delete_organization(self, org_id: str) -> bool:
         with self._conn() as conn:
-            conn.execute("DELETE FROM org_messages WHERE channel_id IN (SELECT id FROM org_channels WHERE org_id = ?)", (org_id,))
+            conn.execute(
+                "DELETE FROM org_messages WHERE channel_id IN (SELECT id FROM org_channels WHERE org_id = ?)", (org_id,)
+            )
             conn.execute("DELETE FROM org_channels WHERE org_id = ?", (org_id,))
             conn.execute("DELETE FROM org_todos WHERE org_id = ?", (org_id,))
             conn.execute("DELETE FROM org_members WHERE org_id = ?", (org_id,))
@@ -787,19 +763,25 @@ class Database:
     def list_messages(self, channel_id: str, limit: int = 50, before: str | None = None) -> list:
         with self._conn() as conn:
             if before:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT m.*, u.name as user_name
                     FROM org_messages m JOIN users u ON m.user_id = u.id
                     WHERE m.channel_id = ? AND m.created_at < ?
                     ORDER BY m.created_at DESC LIMIT ?
-                """, (channel_id, before, limit)).fetchall()
+                """,
+                    (channel_id, before, limit),
+                ).fetchall()
             else:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT m.*, u.name as user_name
                     FROM org_messages m JOIN users u ON m.user_id = u.id
                     WHERE m.channel_id = ?
                     ORDER BY m.created_at DESC LIMIT ?
-                """, (channel_id, limit)).fetchall()
+                """,
+                    (channel_id, limit),
+                ).fetchall()
         return [dict(r) for r in reversed(rows)]
 
     def create_todo(self, org_id: str, content: str, created_by: str, assignee_id: str | None = None) -> str:
@@ -813,12 +795,15 @@ class Database:
 
     def list_todos(self, org_id: str) -> list:
         with self._conn() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT t.*, u.name as assignee_name
                 FROM org_todos t LEFT JOIN users u ON t.assignee_id = u.id
                 WHERE t.org_id = ?
                 ORDER BY t.completed ASC, t.created_at DESC
-            """, (org_id,)).fetchall()
+            """,
+                (org_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
     def update_todo(self, todo_id: str, completed: int | None = None, content: str | None = None) -> bool:

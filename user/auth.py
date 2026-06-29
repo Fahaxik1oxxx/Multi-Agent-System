@@ -7,7 +7,7 @@ import time
 import bcrypt
 import jwt
 
-_JWT_SECRET = os.getenv("JWT_SECRET")
+_JWT_SECRET = os.getenv("JWT_SECRET", "zeng-key-123456")
 if not _JWT_SECRET:
     raise RuntimeError("JWT_SECRET 环境变量未设置，请在 .env 中配置 JWT_SECRET=<随机密钥>")
 _JWT_ALGO = "HS256"
