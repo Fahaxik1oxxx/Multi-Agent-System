@@ -44,14 +44,15 @@ async def run_sync_workflow(user_input: str, lane_mode: str = "auto", timeout: f
     import asyncio
 
     loop = asyncio.get_event_loop()
+    session_id = uuid.uuid4().hex
     state = SessionState(
         queue=asyncio.Queue(),
         cancel=threading.Event(),
         loop=loop,
         created_at=time.time(),
         user_id="sync",
+        session_id=session_id,
     )
-    session_id = uuid.uuid4().hex
     sessions[session_id] = state
 
     thread = threading.Thread(
@@ -145,6 +146,10 @@ def run_workflow_streaming(data: dict, state: SessionState):
             fix_count=0,
             thinking=[],
             final_output="",
+            total_tokens=0,
+            total_elapsed_ms=0,
+            web_search_enabled=data.get("web_search_enabled", False),
+            web_search_results="",
         )
 
         result_state = graph.invoke(initial_state)
@@ -163,14 +168,42 @@ def run_workflow_streaming(data: dict, state: SessionState):
         )
         logger.info("stream | pipeline finished | reply_chars=%d", len(final_reply))
 
+        if project_id and getattr(state, "db", None):
+            try:
+                state.db.create_eval_log(
+                    project_id=project_id,
+                    session_id=state.session_id,
+                    task_type=result_state.get("task_type", "未知"),
+                    complexity=complexity,
+                    agent_count=len(thinking),
+                    total_tokens=state.total_tokens,
+                    elapsed_ms=state.total_elapsed_ms,
+                    has_error=0,
+                )
+            except Exception as eval_e:
+                logger.error("stream | failed to write eval_log: %s", eval_e)
+
     except Exception as e:
         import traceback
 
         tb = traceback.format_exc()
         logger.error("stream | pipeline exception: %s\n%s", e, tb)
-        if os.getenv("ENV") == "production":
-            push(state, {"type": "error", "content": "服务内部错误，请稍后重试。"})
-        else:
-            push(state, {"type": "error", "content": f"{type(e).__name__}: {e}"})
+        push(state, {"type": "error", "content": f"{type(e).__name__}: {e}"})
+
+        # Record error eval log if possible
+        try:
+            if 'project_id' in locals() and project_id and getattr(state, "db", None):
+                state.db.create_eval_log(
+                    project_id=project_id,
+                    session_id=state.session_id,
+                    task_type="错误",
+                    complexity="",
+                    agent_count=0,
+                    total_tokens=state.total_tokens,
+                    elapsed_ms=int((time.time() - state.created_at) * 1000),
+                    has_error=1,
+                )
+        except Exception:
+            pass
     finally:
         push_done(state)

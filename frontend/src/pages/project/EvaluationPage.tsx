@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/client';
@@ -148,14 +149,16 @@ function Charts({ stats }: { stats: EvalStats }) {
 export function EvaluationPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
+  const [days, setDays] = useState<number>(0);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['eval-stats', projectId],
+    queryKey: ['eval-stats', projectId, days],
     queryFn: async () => {
-      const res = await apiClient.get<EvalStats>(`/eval/stats/${projectId}`);
+      const res = await apiClient.get<EvalStats>(`/eval/stats/${projectId}?days=${days}`);
       return res.data;
     },
     enabled: !!projectId,
+    refetchInterval: 30000,
   });
 
   const stats = data ?? fallbackStats;
@@ -173,12 +176,25 @@ export function EvaluationPage() {
         <span className="text-[#d0d4d8] select-none">|</span>
         <button
           className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/monitor`)}
+          onClick={() => navigate(`/v3/personal/${projectId}/monitor`)}
         >
           📡 监控
         </button>
         <span className="text-[#d0d4d8] select-none">|</span>
         <span className="text-[#4f8cff] font-medium">📊 仪表盘</span>
+      </div>
+
+      <div className="flex justify-end mb-4">
+        <select
+          className="select select-bordered select-sm w-32"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+        >
+          <option value={0}>全部时间</option>
+          <option value={7}>近7天</option>
+          <option value={14}>近14天</option>
+          <option value={30}>近30天</option>
+        </select>
       </div>
 
       {/* ── Content ── */}

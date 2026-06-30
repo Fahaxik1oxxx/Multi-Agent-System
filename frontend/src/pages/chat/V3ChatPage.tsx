@@ -13,7 +13,7 @@ import { OrchestrationPage } from '@/pages/project/OrchestrationPage';
 import { generateReportApi } from '@/api/client';
 import type { Session } from '@/types/api';
 import type { Project } from '@/types/workspace';
-import { Search, MessageSquare, Plus, ChevronLeft, ChevronRight, ChevronDown, Check, ArrowLeft } from 'lucide-react';
+import { Search, MessageSquare, Plus, ChevronLeft, ChevronRight, ChevronDown, Check, ArrowLeft, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import { AGENT_META, AGENT_ICONS, AGENT_COLORS } from '@/data/agents';
 
@@ -68,6 +68,7 @@ export function V3ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [laneMode, setLaneMode] = useState<LaneMode>('auto');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -349,7 +350,7 @@ export function V3ChatPage() {
     try {
       await startStream(finalText, laneMode, projectId, (reply, thinking) => {
         // onComplete callback
-      });
+      }, webSearchEnabled);
     } catch {
       // handled by streaming.error
     }
@@ -519,7 +520,7 @@ export function V3ChatPage() {
     const kept = messages.slice(0, lastAssistantIdx);
     setMessages([...kept, precedingUser, { role: 'assistant', content: '', loading: true }]);
     setInputValue('');
-    startStream(precedingUser.content, laneMode, projectId).catch(() => {});
+    startStream(precedingUser.content, laneMode, projectId, undefined, webSearchEnabled).catch(() => {});
   }, [messages, streaming.isStreaming, laneMode, startStream]);
 
   // ── 报告 ──
@@ -550,7 +551,7 @@ export function V3ChatPage() {
     const userMsg: Message = { role: 'user', content: editValue.trim() };
     setMessages([...kept, userMsg, { role: 'assistant', content: '', loading: true }]);
     setEditingIdx(null); setEditValue(''); setInputValue('');
-    startStream(editValue.trim(), laneMode, projectId).catch(() => {});
+    startStream(editValue.trim(), laneMode, projectId, undefined, webSearchEnabled).catch(() => {});
   }, [editValue, editingIdx, messages, streaming.isStreaming, laneMode, startStream]);
 
   // ── 文件上传 ──

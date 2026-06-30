@@ -328,18 +328,37 @@ def web_search(query: str, max_results: int = 5) -> str:
     """搜索网络，返回前 max_results 条结果的标题和摘要。
     参数 query: 搜索关键词, max_results: 返回结果数（默认5，最多10）"""
     try:
-        from duckduckgo_search import DDGS
+        import requests
+        import re
 
-        with DDGS() as ddgs:
-            results = list(ddgs.text(query, max_results=min(max_results, 10)))
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        }
+        resp = requests.get(
+            "https://www.bing.com/search",
+            params={"q": query, "count": min(max_results, 10), "mkt": "zh-CN"},
+            headers=headers,
+            timeout=10,
+        )
+        resp.raise_for_status()
+
+        blocks = re.findall(r'<li\s+class="b_algo"[^>]*>(.*?)</li>', resp.text, re.DOTALL)
+        results = []
+        for block in blocks:
+            title_match = re.search(r'<h2[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', block, re.DOTALL)
+            snippet_match = re.search(r'<div class="b_caption"[^>]*><p[^>]*>(.*?)</p>', block, re.DOTALL)
+            if title_match and len(results) < max_results:
+                url = title_match.group(1)
+                title = re.sub(r'<[^>]+>', '', title_match.group(2)).strip()
+                snippet = re.sub(r'<[^>]+>', '', snippet_match.group(1)).strip() if snippet_match else ""
+                results.append(f"{len(results)+1}. **{title}**\n   {snippet[:200]}\n   {url}")
+
         if not results:
             return "未找到相关结果。请尝试更换搜索词。"
-        lines = []
-        for i, r in enumerate(results, 1):
-            lines.append(f"{i}. **{r['title']}**\n   {r['body'][:200]}\n   {r['href']}")
-        return "\n\n".join(lines)
-    except ImportError:
-        return "[错误] duckduckgo_search 未安装"
+        return "\n\n".join(results)
+    except ImportError as e:
+        return f"[错误] 缺少依赖: {e}"
     except Exception as e:
         return f"[搜索失败] {e}"
 

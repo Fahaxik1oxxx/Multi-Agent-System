@@ -47,6 +47,7 @@ export function useStreamChat() {
     laneMode: string = 'auto',
     projectId?: string,
     onComplete?: (reply: string, thinking: Array<{name: string; content: string}>, taskType: string) => void,
+    webSearchEnabled: boolean = false,
   ) => {
     // Store callback for use in processEvent
     onCompleteRef.current = onComplete;
@@ -71,6 +72,7 @@ export function useStreamChat() {
         lane_mode: laneMode,
         project_id: projectId,
         history: [],
+        web_search_enabled: webSearchEnabled,
       });
       const { session_id } = startResp.data;
       sessionRef.current = session_id;

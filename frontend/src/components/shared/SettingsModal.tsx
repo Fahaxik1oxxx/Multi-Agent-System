@@ -8,9 +8,8 @@ import { avatarColor } from '@/lib/avatar';
 
 const TABS = [
   { id: 'account', label: '账号', icon: '🧑' },
-  { id: 'model', label: '模型', icon: '🤖' },
+  { id: 'model', label: '模型与映射', icon: '🤖' },
   { id: 'agent-design', label: '智能体', icon: '🧠' },
-  { id: 'roles', label: '角色映射', icon: '🔗' },
 ];
 
 const ROLES = ['Planner', 'Retriever', 'Coder', 'Writer', 'Executor', 'Tester', 'Summarizer', 'Bot'];
@@ -279,33 +278,31 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
                   ))}
                 </div>
               )}
+
+              {/* 角色模型映射 */}
+              <div className="space-y-1.5 pt-3 border-t border-[#f0f2f5]">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-sm font-semibold text-[#1d1d1f]">角色模型映射</h3>
+                  <span className="text-[10px] text-[#81858c]">为每个 Agent 选择不同模型</span>
+                </div>
+                {ROLES.map(role => (
+                  <div key={role} className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-[#1d1d1f] w-16 shrink-0">{role}</span>
+                    <select className="select select-bordered select-xs w-full text-xs" style={{ borderRadius: '6px', borderColor: '#e0e4e8' }}
+                      value={roleModels[role] || (config?.roles?.[role] || '')}
+                      onChange={e => setRoleModels(p => ({ ...p, [role]: e.target.value }))}>
+                      <option value="">系统默认</option>
+                      {allModels.map((mk: string) => <option key={mk} value={mk}>{mk}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
         {/* ═══ 智能体设计 ═══ */}
         {tab === 'agent-design' && <AgentDesignTab />}
-
-        {/* ═══ 角色映射 ═══ */}
-        {tab === 'roles' && (
-          <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-[#1d1d1f]">角色模型映射</h3>
-            <p className="text-[10px] text-[#81858c]">为每个 Agent 选择不同模型</p>
-            <div className="space-y-1.5">
-              {ROLES.map(role => (
-                <div key={role} className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-[#1d1d1f] w-16 shrink-0">{role}</span>
-                  <select className="select select-bordered select-xs w-full text-xs" style={{ borderRadius: '6px', borderColor: '#e0e4e8' }}
-                    value={roleModels[role] || (config?.roles?.[role] || '')}
-                    onChange={e => setRoleModels(p => ({ ...p, [role]: e.target.value }))}>
-                    <option value="">系统默认</option>
-                    {allModels.map((mk: string) => <option key={mk} value={mk}>{mk}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
     </div>

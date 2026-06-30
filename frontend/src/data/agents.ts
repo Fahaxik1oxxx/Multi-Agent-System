@@ -11,7 +11,7 @@ export interface AgentMeta {
 export const ALL_AGENTS: AgentMeta[] = [
   { key: 'Planner',    icon: '🧋', label: 'Planner',    color: '#4f8cff', desc: '任务规划' },
   { key: 'Retriever',  icon: '🐍', label: 'Retriever',  color: '#10b981', desc: '知识检索' },
-  { key: 'Coder',      icon: '🫻', label: 'Coder',      color: '#f59e0b', desc: '编写代码' },
+  { key: 'Coder',      icon: '💻', label: 'Coder',      color: '#f59e0b', desc: '编写代码' },
   { key: 'Writer',     icon: '✍️', label: 'Writer',     color: '#8b5cf6', desc: '撰写文档' },
   { key: 'Executor',   icon: '⚙️', label: 'Executor',   color: '#ef4444', desc: '执行代码' },
   { key: 'Tester',     icon: '✅', label: 'Tester',     color: '#06b6d4', desc: 'QA审阅' },

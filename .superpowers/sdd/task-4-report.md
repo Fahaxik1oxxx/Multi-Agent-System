@@ -59,4 +59,4 @@ This provides immediate user feedback via a toast notification and prevents the 
 
 ### Commit
 
-`<hash>` - fix(frontend): avatar_seed回退user_id + 邮箱@校验
+`1215610` - fix(frontend): avatar_seed回退user_id + 邮箱@校验

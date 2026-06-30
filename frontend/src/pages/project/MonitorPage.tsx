@@ -1,18 +1,12 @@
 import { useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { generateReportApi } from '@/api/client';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import apiClient, { generateReportApi } from '@/api/client';
 import { toast } from 'sonner';
+import { AGENT_ICONS, AGENT_COLORS } from '@/data/agents';
 
-// ── Agent constants (same as ChatPage) ──
-const ICONS: Record<string, string> = {
-  Planner: '🧋', Retriever: '🐍', Coder: '🫻', Writer: '✍️',
-  Tester: '✅', Summarizer: '🧊', Bot: '🤖', Executor: '⚙️',
-};
-const COLORS: Record<string, string> = {
-  Planner: '#4f8cff', Retriever: '#8b5cf6', Coder: '#10b981',
-  Writer: '#f59e0b', Tester: '#ef4444', Summarizer: '#4f8cff',
-  Bot: '#10b981', Executor: '#8b5cf6',
-};
+const ICONS = AGENT_ICONS;
+const COLORS = AGENT_COLORS;
 
 interface Step {
   name: string;
@@ -27,15 +21,6 @@ const STATUS_CONFIG: Record<Step['status'], { icon: string; text: string; classN
   done:     { icon: '✅', text: '已完成', className: 'text-[#10b981]' },
   error:    { icon: '❌', text: '失败',   className: 'text-[#ef4444]' },
 };
-
-const MOCK_STEPS: Step[] = [
-  { name: 'Planner',    status: 'done',    elapsedMs: 2100, tokenCount: 850 },
-  { name: 'Retriever',  status: 'done',    elapsedMs: 1200, tokenCount: 420 },
-  { name: 'Coder',      status: 'done',    elapsedMs: 3500, tokenCount: 1800 },
-  { name: 'Executor',   status: 'done',    elapsedMs: 400,  tokenCount: 0 },
-  { name: 'Tester',     status: 'done',    elapsedMs: 1800, tokenCount: 650 },
-  { name: 'Summarizer', status: 'running', elapsedMs: 500,  tokenCount: 200 },
-];
 
 function PipelineTimeline({ steps }: { steps: Step[] }) {
   const maxElapsed = Math.max(...steps.map((s) => s.elapsedMs), 1);
@@ -127,17 +112,36 @@ function PipelineTimeline({ steps }: { steps: Step[] }) {
   );
 }
 
-export function MonitorPage() {
+export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionId = inlineSessionId || searchParams.get('session_id');
   const [exporting, setExporting] = useState(false);
   const [reportContent, setReportContent] = useState<string | null>(null);
-  const reportDialogRef = useState<HTMLDialogElement | null>(null);
 
-  // Build mock thinking data for report generation
-  const mockThinking = MOCK_STEPS.map((s) => ({
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['monitor-session', sessionId],
+    queryFn: async () => {
+      const res = await apiClient.get(`/monitor/session/${sessionId}`);
+      const steps = res.data.steps || [];
+      return steps.map((s: any) => ({
+        name: s.name,
+        status: s.status,
+        elapsedMs: s.elapsed_ms,
+        tokenCount: s.token_count,
+      })) as Step[];
+    },
+    enabled: !!sessionId,
+    refetchInterval: 5000, // Poll every 5s for live updates
+  });
+
+  const steps = data || [];
+
+  // Build thinking data for report generation
+  const mockThinking = steps.map((s) => ({
     name: s.name,
-    content: `${s.name} 阶段${STATUS_CONFIG[s.status].text}，耗时 ${(s.elapsedMs / 1000).toFixed(1)}s，消耗 ${s.tokenCount} tokens。`,
+    content: `${s.name} 阶段${STATUS_CONFIG[s.status]?.text || '未知'}，耗时 ${(s.elapsedMs / 1000).toFixed(1)}s，消耗 ${s.tokenCount} tokens。`,
   }));
 
   const handleExport = useCallback(async () => {
@@ -178,14 +182,22 @@ export function MonitorPage() {
         <span className="text-[#d0d4d8] select-none">|</span>
         <button
           className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
+          onClick={() => navigate(`/v3/personal/${projectId}/eval`)}
         >
           📊 仪表盘
         </button>
       </div>
 
       {/* ── Pipeline Timeline ── */}
-      <PipelineTimeline steps={MOCK_STEPS} />
+      {isLoading ? (
+        <div className="flex justify-center py-10"><span className="loading loading-spinner text-[#4f8cff]" /></div>
+      ) : isError ? (
+        <div className="flex justify-center py-10 text-red-500">加载失败</div>
+      ) : steps.length === 0 ? (
+        <div className="flex justify-center py-10 text-gray-400">暂无步骤日志</div>
+      ) : (
+        <PipelineTimeline steps={steps} />
+      )}
 
       {/* ── Action buttons ── */}
       <div className="flex items-center gap-3 mt-5">
