@@ -9,6 +9,8 @@ export function TeamChat() {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
@@ -51,40 +53,53 @@ export function TeamChat() {
   useEffect(() => {
     if (!orgId) return;
     const token = localStorage.getItem('auth_token');
-    let es: EventSource | null = null;
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      // EventSource doesn't support Authorization header, use fetch as fallback
       const url = `/api/orgs/${orgId}/stream`;
-      fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
+      })
         .then((response) => {
           if (!response.ok || !response.body) return;
           const reader = response.body.getReader();
+          readerRef.current = reader;
           const decoder = new TextDecoder();
           let buffer = '';
           const readLoop = async () => {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-              const parts = buffer.split('\n\n');
-              buffer = parts.pop() || '';
-              for (const part of parts) {
-                const dataLine = part.split('\n').find((l) => l.startsWith('data: '));
-                if (!dataLine) continue;
-                try {
-                  const event = JSON.parse(dataLine.slice(6));
-                  if (event.type === 'message' && event.message) {
-                    setMessages((prev) => [...prev, event.message]);
-                  }
-                } catch { /* skip */ }
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const parts = buffer.split('\n\n');
+                buffer = parts.pop() || '';
+                for (const part of parts) {
+                  const dataLine = part.split('\n').find((l) => l.startsWith('data: '));
+                  if (!dataLine) continue;
+                  try {
+                    const event = JSON.parse(dataLine.slice(6));
+                    if (event.type === 'message' && event.message) {
+                      setMessages((prev) => [...prev, event.message]);
+                    }
+                  } catch { /* skip */ }
+                }
               }
+            } catch (err: any) {
+              if (err?.name !== 'AbortError') throw err;
+            } finally {
+              try { reader.releaseLock(); } catch {}
             }
           };
           readLoop();
         })
         .catch(() => {});
     } catch { /* ignore */ }
-    return () => { es?.close(); };
+    return () => {
+      readerRef.current?.cancel();
+      abortRef.current?.abort();
+    };
   }, [orgId]);
 
   const sendMutation = useMutation({

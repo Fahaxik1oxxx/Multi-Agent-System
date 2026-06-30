@@ -399,7 +399,7 @@ export function ChatPage() {
 
         {messages.map((msg, i) => (
           <MsgBubble
-            key={i}
+            key={msg.id || `msg-${i}`}
             msg={msg}
             idx={i}
             isStreaming={i === messages.length - 1 && streaming.isStreaming}

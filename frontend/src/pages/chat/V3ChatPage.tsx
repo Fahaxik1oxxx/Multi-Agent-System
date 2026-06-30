@@ -176,6 +176,7 @@ export function V3ChatPage() {
   const chatRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── 从项目加载 Agent 配置 ──
   useEffect(() => {
@@ -254,7 +255,6 @@ export function V3ChatPage() {
       const projectSessionIds = getProjectSessions(projectId);
       const filtered = all.filter((s: any) => projectSessionIds.includes(s.id));
       setSessions(filtered);
-      setSideSessions(filtered);  // 同步更新侧栏列表
     } catch {}
   }, [isGuest, projectId]);
   useEffect(() => { fetchSessions(); }, [fetchSessions]);
@@ -318,7 +318,8 @@ export function V3ChatPage() {
   // ── 自动保存 ──
   useEffect(() => {
     if (messages.length === 0 || streaming.isStreaming) return;
-    const timer = setTimeout(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
       const sid = sessionIdRef.current || String(Date.now());
       if (!sessionIdRef.current) sessionIdRef.current = sid;
       sessionsApi.save({
@@ -330,7 +331,10 @@ export function V3ChatPage() {
       if (projectId && sid) addProjectSession(projectId, sid);
       window.dispatchEvent(new CustomEvent('session-saved'));
     }, 500);
-    return () => clearTimeout(timer);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
   }, [messages, streaming.isStreaming, projectId]);
 
   // ── 发送 ──
@@ -582,7 +586,6 @@ export function V3ChatPage() {
 
   // ── 渲染 ──
   const [projectName, setProjectName] = useState('项目');
-  const [sideSessions, setSideSessions] = useState<Session[]>([]);
   const [sideSearch, setSideSearch] = useState('');
   const [sideResults, setSideResults] = useState<Session[] | null>(null);
   const sideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -593,12 +596,6 @@ export function V3ChatPage() {
     if (!projectId) return;
     projectsApi.get(projectId).then(r => { if (r.data?.name) setProjectName(r.data.name); }).catch(() => {});
     if (isGuest) return;
-    const pid = projectId;
-    const stored: string[] = JSON.parse(localStorage.getItem(`v3_proj_sessions_${pid}`) || '[]');
-    sessionsApi.list().then(r => {
-      const all = r.data || [];
-      setSideSessions(all.filter((s: any) => stored.includes(s.id)));
-    }).catch(() => {});
     knowledgeApi.listFiles().then(r => setSideFiles(r.data || [])).catch(() => {});
     knowledgeApi.getStats().then(r => setKnowledgeStats(r.data)).catch(() => {});
   }, [isGuest, projectId]);
@@ -621,7 +618,7 @@ export function V3ChatPage() {
     knowledgeApi.getStats().then(r => setKnowledgeStats(r.data)).catch(() => {});
   }, []);
 
-  const displaySessions = sideResults ?? sideSessions;
+  const displaySessions = sideResults ?? sessions;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -694,11 +691,12 @@ export function V3ChatPage() {
                   e.stopPropagation();
                   const del = async () => {
                     try {
+                      if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
                       await sessionsApi.delete(s.id);
                       const stored: string[] = JSON.parse(localStorage.getItem(`v3_proj_sessions_${projectId}`) || '[]');
                       localStorage.setItem(`v3_proj_sessions_${projectId}`, JSON.stringify(stored.filter(id => id !== s.id)));
-                      fetchSessions();
                       if (sessionIdRef.current === s.id) newChat();
+                      await fetchSessions();
                       toast.success('已删除');
                     } catch { toast.error('删除失败'); }
                   };
@@ -778,7 +776,7 @@ export function V3ChatPage() {
               <div className="max-w-2xl mx-auto">
                 {messages.map((msg, i) => (
                   <MsgBubble
-                    key={i} msg={msg} idx={i}
+                    key={msg.id || `msg-${i}`} msg={msg} idx={i}
                     isStreaming={streaming.isStreaming && i === messages.length - 1}
                     streamingThinking={streaming.thinking} streamingOrder={streaming.thinkingOrder}
                     streamingCurrentAgent={streaming.currentAgent}

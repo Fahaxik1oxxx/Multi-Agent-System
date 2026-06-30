@@ -71,10 +71,26 @@ export function HomePage() {
         let defaultProj = projects.find((p: any) => p.name === DEFAULT_PROJECT_NAME);
 
         if (!defaultProj) {
-          const created = await projectsApi.create(wsId, { name: DEFAULT_PROJECT_NAME, description: '首页快速对话' });
-          defaultProj = created.data;
+          // 二次确认：防止并发创建重复项目
+          const recheck = await projectsApi.list(wsId);
+          const recheckProjects = recheck.data || [];
+          const existing = recheckProjects.find((p: any) => p.name === DEFAULT_PROJECT_NAME);
+          if (existing) {
+            defaultProj = existing;
+          } else {
+            try {
+              const created = await projectsApi.create(wsId, { name: DEFAULT_PROJECT_NAME, description: '首页快速对话' });
+              defaultProj = created.data;
+            } catch {
+              // 创建失败，可能是并发导致的，再次尝试查找
+              const retry = await projectsApi.list(wsId);
+              const retryProjects = retry.data || [];
+              defaultProj = retryProjects.find((p: any) => p.name === DEFAULT_PROJECT_NAME) || null;
+            }
+          }
         }
 
+        if (!defaultProj) return;
         const pid = defaultProj.id || defaultProj;
         setDefaultProjectId(pid);
 

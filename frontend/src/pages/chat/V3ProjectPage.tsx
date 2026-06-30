@@ -77,21 +77,22 @@ export function V3ProjectPage() {
   // 删除项目（含关联会话清理）
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
-      // 1. 清理关联的数据库会话
       const sessionIds = getProjectSessionIds(id);
-      for (const sid of sessionIds) {
-        try { await sessionsApi.delete(sid); } catch { /* 忽略 */ }
+      const results = await Promise.allSettled(
+        sessionIds.map(sid => sessionsApi.delete(sid))
+      );
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        throw new Error(`${failed.length}/${sessionIds.length} 个会话删除失败`);
       }
-      // 2. 清理 localStorage 映射
-      cleanupProjectStorage(id);
-      // 3. 删除项目
       await projectsApi.delete(id);
+      cleanupProjectStorage(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['v3-projects', workspaceId] });
       toast.success('项目已删除（含关联会话记录）');
     },
-    onError: () => toast.error('删除失败'),
+    onError: (err) => toast.error((err as any)?.message || '删除失败'),
   });
 
   // 自动创建工作空间
