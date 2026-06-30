@@ -21,3 +21,5 @@ pyjwt>=2.0
 httpx>=0.28
 scalar-fastapi
 duckduckgo_search>=7.0
+slowapi>=0.1.9
+limits>=3.0

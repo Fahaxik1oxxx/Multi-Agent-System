@@ -42,6 +42,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/day", "50/hour"])
+
 import config as _cfg
 from user.db import Database
 
@@ -73,6 +79,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ──── 静态文件 ────
 app.mount("/coding", StaticFiles(directory=os.path.join(PROJECT_DIR, "coding")), name="coding")
@@ -163,6 +172,7 @@ async def chat(request: Request):
 
 
 @app.post("/api/chat/guest", tags=["聊天"])
+@limiter.limit("10/day")
 async def chat_guest(request: Request):
     """游客免认证聊天 — 使用流式工作图"""
     from router.stream import run_sync_workflow
@@ -190,6 +200,7 @@ async def chat_guest(request: Request):
 
 
 @app.post("/api/report", tags=["聊天"])
+@limiter.limit("20/day")
 async def generate_report(request: Request):
     """从 thinking 记录生成详细报告"""
     from agents import create_llm, SYSTEM_PROMPTS

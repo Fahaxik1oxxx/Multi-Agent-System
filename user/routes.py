@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 
 from user.auth import hash_password, verify_password, create_jwt
 from user.helpers import _get_db, require_auth
+from main import limiter
 
 auth_router = APIRouter()
 session_router = APIRouter()
@@ -19,6 +20,7 @@ user_router = APIRouter()
 
 
 @auth_router.post("/register")
+@limiter.limit("5/hour")
 async def register(request: Request):
     data = await request.json()
     name = (data.get("name") or "").strip()
@@ -38,6 +40,7 @@ async def register(request: Request):
 
 
 @auth_router.post("/login")
+@limiter.limit("20/hour")
 async def login(request: Request):
     data = await request.json()
     name = (data.get("name") or "").strip()
