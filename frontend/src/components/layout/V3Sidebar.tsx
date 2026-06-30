@@ -60,10 +60,8 @@ export function V3Sidebar() {
         </nav>
       </div>
 
-      {/* 右：旧版 + 用户 */}
+      {/* 右：用户 */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/')} className="text-xs text-[#9ca3af] hover:text-[#4b5563]">旧版</button>
-        <div className="border-l border-[#eceef2] h-4" />
         <div className="relative" ref={menuRef}>
           <button onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 text-xs text-[#81858c] hover:text-[#4b5563]">

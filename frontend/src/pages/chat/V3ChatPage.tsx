@@ -179,13 +179,22 @@ export function V3ChatPage() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── 从项目加载 Agent 配置 ──
-  useEffect(() => {
+  const refreshAgentConfig = useCallback(() => {
     if (!projectId) return;
     projectsApi.getAgentConfig(projectId).then((res) => {
       const config = res.data;
       if (config?.enabled_agents?.length) setEnabledAgents(config.enabled_agents);
     }).catch(() => {});
   }, [projectId]);
+
+  useEffect(() => { refreshAgentConfig(); }, [refreshAgentConfig]);
+
+  // ── 编排保存后自动同步 Agent 池 ──
+  useEffect(() => {
+    const handler = () => refreshAgentConfig();
+    window.addEventListener('orchestra-saved', handler);
+    return () => window.removeEventListener('orchestra-saved', handler);
+  }, [refreshAgentConfig]);
 
   // ── 快速对话：自动恢复上一次会话（如果是从首页跳转过来） ──
   const [sessionLoaded, setSessionLoaded] = useState(false);
@@ -274,6 +283,7 @@ export function V3ChatPage() {
       const msgs: Message[] = (res.data.messages || []).map((m: any) => ({
         role: m.role, content: m.content, thinking: m.thinking, taskType: m.taskType,
       }));
+      sessionIdRef.current = sid;
       setMessages(msgs); setEditingIdx(null); setEditValue(''); setInputValue('');
       // 从最后一条 assistant 消息恢复 thinking
       const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant');
@@ -918,9 +928,11 @@ export function V3ChatPage() {
                   {Object.entries(AGENT_META).map(([name, meta]) => {
                     const isOn = enabledAgents.includes(name);
                     return (
-                      <button key={name} onClick={(e) => { e.stopPropagation(); setEnabledAgents(prev =>
-                        prev.includes(name) ? prev.filter(k => k !== name) : [...prev, name]
-                      );}}
+                      <button key={name} onClick={(e) => { e.stopPropagation(); setEnabledAgents(prev => {
+                        const next = prev.includes(name) ? prev.filter(k => k !== name) : [...prev, name];
+                        if (projectId) projectsApi.updateAgentConfig(projectId, next).catch(() => {});
+                        return next;
+                      });}}
                         className={`flex flex-col items-center py-1.5 rounded-lg text-[10px] transition-all ${
                           isOn
                             ? 'bg-white border border-[#e0e4e8] text-[#1d1d1f] shadow-sm'
