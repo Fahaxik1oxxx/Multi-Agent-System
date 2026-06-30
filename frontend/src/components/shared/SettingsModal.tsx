@@ -101,7 +101,7 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
     mutationFn: async () => {
       if (editEmail && !editEmail.includes('@')) {
         toast.error('邮箱格式不正确（需包含 @）');
-        throw new Error('邮箱格式不正确');
+        return;
       }
       const data: Record<string, string> = {};
       if (editName && editName !== user?.user_name) data.name = editName;
