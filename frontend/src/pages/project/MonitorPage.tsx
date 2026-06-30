@@ -179,6 +179,25 @@ export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
 
   return (
     <div className="max-w-3xl mx-auto p-4">
+      {/* ── 顶部导航栏 ── */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
+          className="text-xs text-[#81858c] hover:text-[#4f8cff] transition-colors"
+        >
+          ← 返回对话
+        </button>
+        {steps.length > 0 && (
+          <button
+            disabled={exporting}
+            onClick={handleExport}
+            className="flex items-center gap-1 text-xs text-[#81858c] hover:text-[#4f8cff] transition-colors"
+          >
+            {exporting ? <span className="loading loading-spinner loading-xs" /> : '📄'} 导出报告
+          </button>
+        )}
+      </div>
+
       {/* ── Pipeline Timeline ── */}
       {isLoading ? (
         <div className="flex justify-center py-10"><span className="loading loading-spinner text-[#4f8cff]" /></div>
@@ -189,29 +208,6 @@ export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
       ) : (
         <PipelineTimeline steps={steps} />
       )}
-
-      {/* ── Action buttons ── */}
-      <div className="flex items-center gap-3 mt-5">
-        <button
-          className="btn btn-sm"
-          style={{ background: '#f0f2f5', color: '#1d1d1f', borderRadius: '10px', border: 'none' }}
-          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
-        >
-          💬 查看对话
-        </button>
-        <button
-          className="btn btn-sm"
-          disabled={exporting}
-          onClick={handleExport}
-          style={{ background: 'var(--brand-primary, #4f8cff)', color: '#fff', borderRadius: '10px', border: 'none' }}
-        >
-          {exporting ? (
-            <span className="loading loading-spinner loading-xs" />
-          ) : (
-            '📄 导出报告'
-          )}
-        </button>
-      </div>
 
       {/* ── 仪表盘数据 ── */}
       {inlineSessionId && <EvalDashboard projectId={projectId} />}
