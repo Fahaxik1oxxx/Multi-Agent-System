@@ -99,6 +99,10 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
   // ── mutations ──
   const profileMutation = useMutation({
     mutationFn: async () => {
+      if (editEmail && !editEmail.includes('@')) {
+        toast.error('邮箱格式不正确（需包含 @）');
+        throw new Error('邮箱格式不正确');
+      }
       const data: Record<string, string> = {};
       if (editName && editName !== user?.user_name) data.name = editName;
       if (editPassword) data.password = editPassword;
@@ -150,7 +154,7 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
             <div className="flex gap-4">
               <div style={{
                 width: 64, height: 64, borderRadius: '50%',
-                background: avatarColor(profile?.avatar_seed || ''),
+                background: avatarColor(profile?.avatar_seed || profile?.user_id || ''),
                 color: '#fff',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 27, fontWeight: 700,
