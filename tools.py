@@ -343,16 +343,3 @@ def web_search(query: str, max_results: int = 5) -> str:
     except Exception as e:
         return f"[搜索失败] {e}"
 
-
-# ===== 工具字典 =====
-
-ALL_TOOLS = {
-    "read_file": read_file,
-    "write_file": write_file,
-    "search_knowledge": search_knowledge,
-    "calculate": calculate,
-    "analyze_data": analyze_data,
-    "visualize_data": visualize_data,
-    "ocr_image": ocr_image,
-    "web_search": web_search,
-}

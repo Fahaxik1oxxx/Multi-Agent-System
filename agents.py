@@ -90,5 +90,5 @@ from functools import lru_cache
 
 @lru_cache(maxsize=8)
 def get_cached_llm(role: str, temperature: float = 0.3):
-    """获取缓存的 LLM 实例。使用 lru_cache 替代 Streamlit st.cache_resource。"""
+    """获取缓存的 LLM 实例。"""
     return create_llm(role, temperature)

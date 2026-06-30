@@ -48,7 +48,7 @@ _ROLE_MODEL: dict[str, str] = {
     "Bot": "a-deepseek",
 }
 
-# 公开别名（向后兼容）
+# 公开别名
 ROLE_MODEL: dict[str, str] = _ROLE_MODEL
 
 
@@ -63,11 +63,6 @@ def _resolve_model(role: str) -> dict[str, Any]:
     if key and key in MODEL_POOL:
         return dict(MODEL_POOL[key])
     return {"model": "?", "api_key": "", "base_url": ""}
-
-
-def get_config(role: str) -> dict[str, list[dict[str, Any]]]:
-    """返回 AutoGen / AG2 兼容格式的 llm_config"""
-    return {"config_list": [_resolve_model(role)]}
 
 
 def get_model_config(role: str) -> dict[str, Any]:

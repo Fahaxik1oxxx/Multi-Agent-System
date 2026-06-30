@@ -1,7 +1,5 @@
 """
-多智能体协作系统 — FastAPI Web 入口
-运行：uvicorn main:app --reload --port 8501
-"""
+多智能体协作系统 — FastAPI Web 入口"""
 
 import os
 import sys
@@ -83,7 +81,7 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning("WAL checkpoint 执行失败，下次启动时 SQLite 将自动恢复", exc_info=True)
 
 
-app = FastAPI(title="多智能体协作系统", version="3.4", lifespan=lifespan)
+app = FastAPI(title="多智能体协作系统", version="3.6", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -132,7 +130,7 @@ async def root():
 @app.get("/api/health", tags=["系统"])
 async def health():
     """健康检查"""
-    return JSONResponse({"status": "ok", "version": "3.5"})
+    return JSONResponse({"status": "ok", "version": "3.6"})
 
 
 @app.get("/scalar", include_in_schema=False)
@@ -269,4 +267,4 @@ async def generate_report(request: Request):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8501, reload=False)
+    uvicorn.run("main:app", host="127.0.0.1", port=int(os.getenv("PORT", "8000")), reload=False)

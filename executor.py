@@ -1,12 +1,10 @@
 """
 安全代码执行沙箱 —— Docker 容器隔离。
-Docker 不可用时降级为 subprocess。
 """
 
 import subprocess
 import uuid
 import os
-import logging
 
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 WORKSPACE = os.path.join(_PROJECT_DIR, "coding")
@@ -25,7 +23,7 @@ DOCKER_OK = _docker_available()
 
 
 class CodeExecutor:
-    """代码执行沙箱 — 优先 Docker，降级 subprocess"""
+    """代码执行沙箱 —— Docker 容器隔离"""
 
     TIMEOUT = 30
 
@@ -77,33 +75,6 @@ class CodeExecutor:
             }
         except subprocess.TimeoutExpired:
             subprocess.run(["docker", "kill", container_name], capture_output=True)
-            return {"stdout": "", "stderr": f"执行超时 (>{self.TIMEOUT}s)", "exitcode": 1}
-        finally:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-
-    def _subprocess_exec(self, code: str) -> dict:
-        os.makedirs(WORKSPACE, exist_ok=True)
-        file_id = str(uuid.uuid4())[:8]
-        filepath = os.path.join(WORKSPACE, f"tmp_{file_id}.py")
-
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(code)
-
-        try:
-            result = subprocess.run(
-                ["python", filepath],
-                capture_output=True,
-                text=True,
-                timeout=self.TIMEOUT,
-                cwd=WORKSPACE,
-            )
-            return {
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "exitcode": result.returncode,
-            }
-        except subprocess.TimeoutExpired:
             return {"stdout": "", "stderr": f"执行超时 (>{self.TIMEOUT}s)", "exitcode": 1}
         finally:
             if os.path.exists(filepath):

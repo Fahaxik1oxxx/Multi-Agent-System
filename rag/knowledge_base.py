@@ -12,6 +12,8 @@ import shutil
 import threading
 import logging
 import time
+import hashlib
+import json
 
 _logger = logging.getLogger(__name__)
 _locks: dict[str, threading.Lock] = {}
@@ -141,11 +143,40 @@ def _load_and_chunk_documents(user_id: str) -> tuple[list, list[dict]]:
     return all_chunks, errors
 
 
+def _compute_fingerprint(user_id: str) -> str:
+    """计算用户文档目录的文件指纹（文件名 + 大小 + 修改时间），用于判断是否需要重建索引。"""
+    docs_dir, _ = _get_user_dirs(user_id)
+    hasher = hashlib.sha256()
+    for fname in sorted(os.listdir(docs_dir)):
+        fpath = os.path.join(docs_dir, fname)
+        if not fname.endswith((".pdf", ".txt")):
+            continue
+        try:
+            stat = os.stat(fpath)
+            hasher.update(f"{fname}|{stat.st_size}|{stat.st_mtime}".encode())
+        except OSError:
+            hasher.update(f"{fname}|error".encode())
+    return hasher.hexdigest()
+
+
 def _build_index_locked(user_id: str) -> tuple[int, list[dict]]:
     """带锁的实际重建逻辑：先建到临时目录，成功后原子替换。
-    返回 (chunk_count, errors)。"""
+    文件无变化时跳过重建。返回 (chunk_count, errors)。"""
     docs_dir, persist_dir = _get_user_dirs(user_id)
     tmp_dir = persist_dir + "_tmp"
+    manifest_path = os.path.join(persist_dir, ".index_manifest.json")
+
+    # 0. 增量检测：文件无变化且索引已存在则跳过
+    fingerprint = _compute_fingerprint(user_id)
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+            existing_db = os.path.join(persist_dir, "chroma.sqlite3")
+            if manifest.get("fingerprint") == fingerprint and os.path.exists(existing_db):
+                return 0, []  # 文件无变化，0 个新增切片
+        except (json.JSONDecodeError, KeyError):
+            pass  # manifest 损坏，正常重建
 
     # 1. 清理残留临时目录
     if os.path.exists(tmp_dir):
@@ -154,6 +185,23 @@ def _build_index_locked(user_id: str) -> tuple[int, list[dict]]:
     # 2. 加载并切分文档（单文件异常隔离）
     chunks, errors = _load_and_chunk_documents(user_id)
     if not chunks:
+        # 无文件 → 删除旧索引和清单
+        _evict_cached_vs(user_id)
+        # 先改名再删除，避免文件锁导致静默失败
+        if os.path.exists(persist_dir):
+            dead_dir = persist_dir + "_dead"
+            if os.path.exists(dead_dir):
+                shutil.rmtree(dead_dir, ignore_errors=True)
+            try:
+                os.rename(persist_dir, dead_dir)
+                shutil.rmtree(dead_dir, ignore_errors=True)
+            except OSError:
+                shutil.rmtree(persist_dir, ignore_errors=True)
+        if os.path.exists(manifest_path):
+            try:
+                os.remove(manifest_path)
+            except OSError:
+                pass
         return 0, errors
 
     # 3. 建到临时目录
@@ -164,15 +212,31 @@ def _build_index_locked(user_id: str) -> tuple[int, list[dict]]:
     # 4. 淘汰旧缓存并关闭连接
     _evict_cached_vs(user_id)
 
-    # 5. 原子替换（Windows: os.rename 对已存在目录返回 PermissionError）
+    # 5. 原子替换：先改名旧目录（避免 rmtree 文件锁导致合并），再改名新目录
+    backup_dir = persist_dir + "_old"
+    if os.path.exists(backup_dir):
+        shutil.rmtree(backup_dir, ignore_errors=True)
     if os.path.exists(persist_dir):
-        shutil.rmtree(persist_dir)
+        try:
+            os.rename(persist_dir, backup_dir)
+        except OSError:
+            shutil.rmtree(persist_dir, ignore_errors=True)
+            # rmtree 失败则直接跳过（index 已经是新的，旧目录稍后手动清理）
     try:
         os.rename(tmp_dir, persist_dir)
     except OSError:
-        # Windows 回退：跨驱动器或目标残留时用 copytree
         shutil.copytree(tmp_dir, persist_dir)
         shutil.rmtree(tmp_dir, ignore_errors=True)
+    # 清理备份
+    if os.path.exists(backup_dir):
+        shutil.rmtree(backup_dir, ignore_errors=True)
+
+    # 6. 写入清单（指纹 + 切片数）
+    try:
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump({"fingerprint": fingerprint, "chunk_count": len(chunks)}, f)
+    except OSError:
+        pass
 
     return len(chunks), errors
 
@@ -207,8 +271,14 @@ def get_stats(user_id: str) -> dict:
     _, persist_dir = _get_user_dirs(user_id)
     db_path = os.path.join(persist_dir, "chroma.sqlite3")
     if not os.path.exists(db_path):
-        return {"文档数": len(docs), "切片数": 0, "就绪": False}
+        return {"total_files": len(docs), "indexed_files": 0, "total_chunks": 0, "last_indexed": None}
     vs = _get_vectorstore(user_id)
     if vs is None:
-        return {"文档数": len(docs), "切片数": 0, "就绪": False}
-    return {"文档数": len(docs), "切片数": vs._collection.count(), "就绪": True}
+        return {"total_files": len(docs), "indexed_files": 0, "total_chunks": 0, "last_indexed": None}
+    chunk_count = vs._collection.count()
+    return {
+        "total_files": len(docs),
+        "indexed_files": len(docs) if chunk_count > 0 else 0,
+        "total_chunks": chunk_count,
+        "last_indexed": None,
+    }
