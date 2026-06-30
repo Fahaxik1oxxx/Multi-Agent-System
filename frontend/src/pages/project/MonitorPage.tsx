@@ -1,8 +1,7 @@
-import { useState, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import apiClient, { generateReportApi } from '@/api/client';
-import { toast } from 'sonner';
+import apiClient from '@/api/client';
 import { AGENT_ICONS, AGENT_COLORS } from '@/data/agents';
 import {
   PieChart, Pie, Cell,
@@ -123,12 +122,9 @@ function PipelineTimeline({ steps }: { steps: Step[] }) {
 }
 
 export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
-  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
-  const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
   const [searchParams] = useSearchParams();
   const sessionId = inlineSessionId || searchParams.get('session_id');
-  const [exporting, setExporting] = useState(false);
-  const [reportContent, setReportContent] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['monitor-session', sessionId],
@@ -148,62 +144,8 @@ export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
 
   const steps = data || [];
 
-  // Build thinking data for report generation
-  const mockThinking = steps.map((s) => ({
-    name: s.name,
-    content: `${s.name} 阶段${STATUS_CONFIG[s.status]?.text || '未知'}，耗时 ${(s.elapsedMs / 1000).toFixed(1)}s，消耗 ${s.tokenCount} tokens。`,
-  }));
-
-  const handleExport = useCallback(async () => {
-    setExporting(true);
-    try {
-      const result = await generateReportApi(mockThinking);
-      setReportContent(result.content || '报告生成失败');
-      // Trigger download
-      const blob = new Blob([result.content || ''], { type: 'text/markdown;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `report_${Date.now()}.md`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('报告已导出');
-    } catch {
-      toast.error('报告导出失败');
-    } finally {
-      setExporting(false);
-    }
-  }, [mockThinking]);
-
   return (
     <div className="max-w-3xl mx-auto p-4">
-      {/* ── 顶部导航栏 ── */}
-      <div className="flex items-center justify-between mb-4">
-        <button
-          onClick={() => {
-            if (inlineSessionId) {
-              window.dispatchEvent(new CustomEvent('close-monitor'));
-            } else {
-              navigate(`/v3/personal/${projectId}/chat`);
-            }
-          }}
-          className="text-xs text-[#81858c] hover:text-[#4f8cff] transition-colors"
-        >
-          ← 返回对话
-        </button>
-        {steps.length > 0 && (
-          <button
-            disabled={exporting}
-            onClick={handleExport}
-            className="flex items-center gap-1 text-xs text-[#81858c] hover:text-[#4f8cff] transition-colors"
-          >
-            {exporting ? <span className="loading loading-spinner loading-xs" /> : '📄'} 导出报告
-          </button>
-        )}
-      </div>
-
       {/* ── Pipeline Timeline ── */}
       {isLoading ? (
         <div className="flex justify-center py-10"><span className="loading loading-spinner text-[#4f8cff]" /></div>
