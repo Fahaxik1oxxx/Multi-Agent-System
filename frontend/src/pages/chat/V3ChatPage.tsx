@@ -591,6 +591,7 @@ export function V3ChatPage() {
   const sideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sideFiles, setSideFiles] = useState<any[]>([]);
   const sideFileInputRef = useRef<HTMLInputElement>(null);
+  const modalFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -1009,8 +1010,22 @@ export function V3ChatPage() {
           {/* 文件列表 + 上传 */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-[#1d1d1f]">文件列表</span>
-            <button onClick={() => sideFileInputRef.current?.click()}
+            <button onClick={() => modalFileInputRef.current?.click()}
               className="btn btn-xs" style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>+ 上传</button>
+            <input ref={modalFileInputRef} type="file" className="hidden" accept=".pdf,.txt,.png,.jpg,.jpeg"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                const toastId = toast.loading(`上传中: ${f.name}`);
+                try {
+                  await knowledgeApi.upload(f);
+                  toast.success(`上传完成: ${f.name}`, { id: toastId });
+                  refreshKnowledgeFiles();
+                } catch {
+                  toast.error(`上传失败: ${f.name}`, { id: toastId });
+                }
+                e.target.value = '';
+              }} />
           </div>
           <div className="space-y-1 max-h-48 overflow-y-auto">
             {sideFiles.length === 0 ? (
