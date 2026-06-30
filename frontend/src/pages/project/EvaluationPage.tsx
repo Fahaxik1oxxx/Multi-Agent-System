@@ -165,25 +165,6 @@ export function EvaluationPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      {/* ── Tab navigation ── */}
-      <div className="flex items-center gap-1 mb-4 text-sm">
-        <button
-          className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/w/${workspaceId}/p/${projectId}/chat`)}
-        >
-          💬 对话
-        </button>
-        <span className="text-[#d0d4d8] select-none">|</span>
-        <button
-          className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-          onClick={() => navigate(`/v3/personal/${projectId}/monitor`)}
-        >
-          📡 监控
-        </button>
-        <span className="text-[#d0d4d8] select-none">|</span>
-        <span className="text-[#4f8cff] font-medium">📊 仪表盘</span>
-      </div>
-
       <div className="flex justify-end mb-4">
         <select
           className="select select-bordered select-sm w-32"
