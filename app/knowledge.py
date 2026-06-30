@@ -48,8 +48,8 @@ async def kb_stats(user: dict = Depends(require_auth)):
 async def kb_rebuild(user: dict = Depends(require_auth)):
     from rag.knowledge_base import build_index
 
-    n = build_index(user["user_id"])
-    return JSONResponse({"success": True, "added": n})
+    n, errors = build_index(user["user_id"])
+    return JSONResponse({"success": True, "added": n, "errors": errors})
 
 
 @router.post("/upload")
@@ -106,10 +106,11 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
         # 上传后自动重建索引
         try:
             from rag.knowledge_base import build_index
-            chunk_count = build_index(user["user_id"])
+            chunk_count, errors = build_index(user["user_id"])
             return JSONResponse({
                 "success": True, "status": "ok", "filename": safe_name,
                 "indexed": True, "chunks": chunk_count,
+                "errors": errors if errors else None,
             })
         except Exception as e:
             return JSONResponse({
@@ -133,7 +134,10 @@ async def kb_delete(filename: str, user: dict = Depends(require_auth)):
     # 删除后重建索引，移除已删除文件的向量数据
     from rag.knowledge_base import build_index
     try:
-        n = build_index(user["user_id"])
-        return JSONResponse({"success": True, "chunks": n})
+        n, errors = build_index(user["user_id"])
+        resp = {"success": True, "chunks": n}
+        if errors:
+            resp["errors"] = errors
+        return JSONResponse(resp)
     except Exception as e:
         return JSONResponse({"success": True, "warning": f"文件已删除但索引重建失败: {str(e)[:100]}"})
