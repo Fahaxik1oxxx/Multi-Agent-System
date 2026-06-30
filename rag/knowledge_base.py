@@ -95,8 +95,9 @@ def _get_vectorstore(user_id: str):
     return None
 
 
-def build_index(user_id: str) -> int:
-    """扫描用户文档目录下所有 PDF/TXT，重建索引（线程安全，事务性）。"""
+def build_index(user_id: str) -> tuple[int, list[dict]]:
+    """扫描用户文档目录下所有 PDF/TXT，重建索引（线程安全，事务性）。
+    返回 (chunk_count, errors)。"""
     with _get_lock(user_id):
         return _build_index_locked(user_id)
 
@@ -140,8 +141,9 @@ def _load_and_chunk_documents(user_id: str) -> tuple[list, list[dict]]:
     return all_chunks, errors
 
 
-def _build_index_locked(user_id: str) -> int:
-    """带锁的实际重建逻辑：先建到临时目录，成功后原子替换。"""
+def _build_index_locked(user_id: str) -> tuple[int, list[dict]]:
+    """带锁的实际重建逻辑：先建到临时目录，成功后原子替换。
+    返回 (chunk_count, errors)。"""
     docs_dir, persist_dir = _get_user_dirs(user_id)
     tmp_dir = persist_dir + "_tmp"
 
@@ -150,9 +152,9 @@ def _build_index_locked(user_id: str) -> int:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     # 2. 加载并切分文档（单文件异常隔离）
-    chunks = _load_and_chunk_documents(user_id)
+    chunks, errors = _load_and_chunk_documents(user_id)
     if not chunks:
-        return 0
+        return 0, errors
 
     # 3. 建到临时目录
     emb = _get_embeddings()
@@ -172,7 +174,7 @@ def _build_index_locked(user_id: str) -> int:
         shutil.copytree(tmp_dir, persist_dir)
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    return len(chunks)
+    return len(chunks), errors
 
 
 def search(query: str, user_id: str, k: int = 3, min_score: float = 0.40) -> list[str]:
