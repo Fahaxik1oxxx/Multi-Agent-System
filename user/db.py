@@ -3,11 +3,16 @@ SQLite 数据库模块 —— 纯 CRUD，无业务校验。
 users / sessions / user_configs 三张表。
 """
 
+import base64
+import hashlib
 import json
+import os
 import sqlite3
 import time as _time
 import uuid
 from contextlib import contextmanager
+
+from cryptography.fernet import Fernet
 
 
 class Database:
@@ -52,6 +57,16 @@ class Database:
             for v in range(current + 1, self.TARGET_SCHEMA_VERSION + 1):
                 self._run_migration(conn, v)
                 conn.execute("INSERT INTO schema_version (version) VALUES (?)", (v,))
+
+    def _get_fernet(self) -> Fernet:
+        """从 JWT_SECRET 派生 Fernet 加密密钥（32 字节 base64）。"""
+        if not hasattr(self, "_fernet_cache"):
+            secret = os.getenv("JWT_SECRET", "")
+            if not secret:
+                raise RuntimeError("JWT_SECRET 未设置，无法加解密 API Key")
+            key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
+            self._fernet_cache = Fernet(key)
+        return self._fernet_cache
 
     def _run_migration(self, conn, version: int):
         """执行指定版本的数据库迁移（幂等 — 全部使用 IF NOT EXISTS）"""
@@ -622,12 +637,24 @@ class Database:
             row = conn.execute("SELECT roles, models FROM user_configs WHERE user_id = ?", (user_id,)).fetchone()
             if not row:
                 return None
-            return {
-                "roles": json.loads(row["roles"]),
-                "models": json.loads(row["models"]),
-            }
+            roles = json.loads(row["roles"]) if row["roles"] else {}
+            models = json.loads(row["models"]) if row["models"] else []
+            if models:
+                fernet = self._get_fernet()
+                for model in models:
+                    if model.get("api_key", "").startswith("gAAAAA"):
+                        try:
+                            model["api_key"] = fernet.decrypt(model["api_key"].encode()).decode()
+                        except Exception:
+                            model["api_key"] = "[解密失败]"
+            return {"roles": roles, "models": models}
 
     def upsert_user_config(self, user_id: str, roles: dict, models: list) -> bool:
+        if models:
+            fernet = self._get_fernet()
+            for model in models:
+                if model.get("api_key") and not model.get("api_key", "").startswith("gAAAAA"):
+                    model["api_key"] = fernet.encrypt(model["api_key"].encode()).decode()
         roles_json = json.dumps(roles, ensure_ascii=False)
         models_json = json.dumps(models, ensure_ascii=False)
         with self._conn() as conn:
