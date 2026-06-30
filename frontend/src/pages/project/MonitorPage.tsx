@@ -182,7 +182,13 @@ export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
       {/* ── 顶部导航栏 ── */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
+          onClick={() => {
+            if (inlineSessionId) {
+              window.dispatchEvent(new CustomEvent('close-monitor'));
+            } else {
+              navigate(`/v3/personal/${projectId}/chat`);
+            }
+          }}
           className="text-xs text-[#81858c] hover:text-[#4f8cff] transition-colors"
         >
           ← 返回对话
