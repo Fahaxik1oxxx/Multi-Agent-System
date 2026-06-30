@@ -48,6 +48,7 @@ export function useStreamChat() {
     projectId?: string,
     onComplete?: (reply: string, thinking: Array<{name: string; content: string}>, taskType: string) => void,
     webSearchEnabled: boolean = false,
+    agentStates: Record<string, string> = {},
   ) => {
     // Store callback for use in processEvent
     onCompleteRef.current = onComplete;
@@ -73,6 +74,7 @@ export function useStreamChat() {
         project_id: projectId,
         history: [],
         web_search_enabled: webSearchEnabled,
+        agent_states: agentStates,
       });
       const { session_id } = startResp.data;
       sessionRef.current = session_id;
