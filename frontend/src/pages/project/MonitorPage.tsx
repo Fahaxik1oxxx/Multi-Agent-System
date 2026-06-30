@@ -214,7 +214,7 @@ export function MonitorPage({ inlineSessionId }: { inlineSessionId?: string }) {
       </div>
 
       {/* ── 仪表盘数据 ── */}
-      <EvalDashboard projectId={projectId} />
+      {inlineSessionId && <EvalDashboard projectId={projectId} />}
     </div>
   );
 }
@@ -256,7 +256,7 @@ function EvalDashboard({ projectId }: { projectId?: string }) {
           { label: '总执行次数', value: data.total.toLocaleString(), icon: '🚀' },
           { label: '平均耗时', value: formatMs(data.avg_elapsed_ms), icon: '⏱️' },
           { label: 'Token 总量', value: formatTokens(data.total_tokens), icon: '🧮' },
-          { label: '错误率', value: `${(data.error_rate * 100).toFixed(1)}%`, icon: '⚠️' },
+          { label: '错误率', value: `${data.error_rate.toFixed(1)}%`, icon: '⚠️' },
         ].map(c => (
           <div key={c.label} className="bg-white rounded-2xl border border-[#e8ecf1] p-4">
             <div className="flex items-center gap-2 mb-1"><span className="text-lg">{c.icon}</span><span className="text-xs text-[#81858c]">{c.label}</span></div>

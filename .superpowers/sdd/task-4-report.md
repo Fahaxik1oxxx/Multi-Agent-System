@@ -1,62 +1,25 @@
-# Task 4 Report: SettingsModal Account Tab Redesign
+# Task 4 Report: 编排保存同步 agent_states
 
-**Status: Complete**
+**Status:** Completed
+**Commit:** `2f2d25c` on branch `Fahaxik1oxxx`
 
-## What was done
+## Changes Made
 
-Modified `frontend/src/components/shared/SettingsModal.tsx` to redesign the account tab with avatar, email, and bio inputs.
+### 1. `frontend/src/pages/project/OrchestrationPage.tsx` (lines 160-182)
 
-### Changes Made
+Modified `saveMutation.mutationFn` to:
 
-1. **Avatar color utility** (lines 8-16): Added `AVATAR_COLORS` array and `avatarColor(seed)` hash function that deterministically maps a string seed to one of 8 colors.
+1. Scan all pipeline nodes for `type === 'agent'` entries
+2. Default all pipeline agents to `'on'` state
+3. Preserve any existing `'off'` states from `initialData.agent_states`
+4. Pass `{ pipeline: p, agent_states: agentStates }` instead of just the pipeline config
 
-2. **New state variables** (lines 57-58): Added `editEmail` and `editBio` alongside existing `editName` and `editPassword`.
+### 2. `frontend/src/api/projects.ts` (lines 25-31)
 
-3. **getProfile queryFn** (lines 72-78): Updated to initialize `editEmail` and `editBio` from the profile API response (with fallback to empty string).
+Updated the `updateAgentConfig` API handler to forward `pipeline` alongside `agent_states` when both are present. Previously, the `'agent_states' in data` branch only sent `agent_states`, discarding any pipeline data.
 
-4. **profileMutation** (lines 100-109): Expanded to include `email` and `bio` in the update payload when they differ from current profile values. Changed type from `{ name?: string; password?: string }` to `Record<string, string>`.
+## Verification
 
-5. **Account tab JSX** (lines 145-199): Replaced the old layout with:
-   - Avatar circle: 64px round div using `avatarColor(profile?.avatar_seed)` as background, displaying the first letter of the username
-   - Email input with placeholder
-   - Bio input with placeholder
-   - Password input (unchanged)
-   - Read-only user ID and registration date (formatted as zh-CN locale)
-   - Gradient save button
-
-### Commit
-
-`bba661e` - feat(frontend): 设置页账号标签 — 头像 + 邮箱 + 简介
-
----
-
-## Fix Report (2026-06-30)
-
-### Issue 1: avatar_seed fallback to user_id (CRITICAL)
-
-The avatar color function was called with only `profile?.avatar_seed || ''` as its argument. If `avatar_seed` was empty (common for users registered before this field existed), the fallback was an empty string, which always hashes to the same color (index 0, `#4f8cff`). This caused all users without an `avatar_seed` to share the same avatar color.
-
-**Fix**: Added `profile?.user_id` as an intermediate fallback:
-```tsx
-background: avatarColor(profile?.avatar_seed || profile?.user_id || '')
-```
-
-If `avatar_seed` is empty, the hash is now computed from `user_id` instead, ensuring a stable, per-user color with high probability. The final `|| ''` is a last-resort guard for the unlikely case that both fields are missing.
-
-### Issue 2: Email validation (MEDIUM)
-
-The profile update mutation had no client-side email validation. A user could submit a malformed email (e.g., missing `@`) and only discover the error after the server rejected it.
-
-**Fix**: Added a guard clause at the top of `mutationFn`:
-```tsx
-if (editEmail && !editEmail.includes('@')) {
-  toast.error('邮箱格式不正确（需包含 @）');
-  throw new Error('邮箱格式不正确');
-}
-```
-
-This provides immediate user feedback via a toast notification and prevents the malformed payload from reaching the server. The `throw` causes `onError` to fire, which gracefully handles the error (the error message "邮箱格式不正确" is different from "无变更", so it passes through the `toast.error` guard on line 117).
-
-### Commit
-
-`1215610` - fix(frontend): avatar_seed回退user_id + 邮箱@校验
+- TypeScript compilation: clean, no errors
+- Behavior: When the user clicks "保存流水线" in OrchestrationPage, agent_states are now automatically built from the pipeline nodes and included in the save payload
+- Agent states sync: agents in the pipeline default to `'on'`, existing `'off'` states are preserved, and agents not in the pipeline are implicitly absent from the state map

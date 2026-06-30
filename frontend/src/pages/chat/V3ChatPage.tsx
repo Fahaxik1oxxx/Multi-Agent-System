@@ -931,7 +931,7 @@ export function V3ChatPage() {
                             return next;
                           });
                         }}
-                        className={`flex flex-col items-center py-1.5 rounded-lg text-[10px] transition-all ${
+                        className={`flex flex-col items-center justify-center py-1.5 rounded-lg text-[10px] transition-all min-h-[58px] ${
                           isOn
                             ? 'bg-white border border-[#e0e4e8] text-[#1d1d1f] shadow-sm'
                             : isOff
@@ -941,8 +941,9 @@ export function V3ChatPage() {
                         title={isDisabled ? '不在编排中' : isOff ? '已关闭，点击开启' : '已开启，点击关闭'}>
                         <span className={`text-base leading-none mb-0.5 ${isOff || isDisabled ? 'grayscale opacity-40' : ''}`}>{meta.icon}</span>
                         <span className="leading-tight">{name}</span>
-                        {isOff && <span className="text-[8px] text-amber-500 mt-0.5">已关闭</span>}
-                        {isDisabled && <span className="text-[8px] text-[#b0b8c1] mt-0.5">未编排</span>}
+                        <span className="text-[8px] mt-0.5 leading-none" style={{ minHeight: '10px' }}>
+                          {isOff ? '已关闭' : isDisabled ? '未编排' : ' '}
+                        </span>
                       </button>
                     );
                   })}
