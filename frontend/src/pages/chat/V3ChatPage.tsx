@@ -186,13 +186,6 @@ export function V3ChatPage() {
     return () => window.removeEventListener('orchestra-saved', handler);
   }, [refreshAgentConfig]);
 
-  // ── 监控页返回对话 ──
-  useEffect(() => {
-    const handler = () => setMonitorOpen(false);
-    window.addEventListener('close-monitor', handler);
-    return () => window.removeEventListener('close-monitor', handler);
-  }, []);
-
   // ── 快速对话：自动恢复上一次会话（如果是从首页跳转过来） ──
   const [sessionLoaded, setSessionLoaded] = useState(false);
   useEffect(() => {

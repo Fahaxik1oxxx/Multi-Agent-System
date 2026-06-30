@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import {
@@ -147,8 +147,7 @@ function Charts({ stats }: { stats: EvalStats }) {
 // ── Page ──
 
 export function EvaluationPage() {
-  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
-  const navigate = useNavigate();
+  const { projectId } = useParams<{ projectId: string }>();
   const [days, setDays] = useState<number>(0);
 
   const { data, isLoading, isError } = useQuery({

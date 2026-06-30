@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/api/projects';
 import { Canvas } from '@/components/orchestra/Canvas';
@@ -146,8 +146,7 @@ export function OrchestrationPage() {
 }
 
 function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialData: any, projectId: string, workspaceId: string }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+const queryClient = useQueryClient();
   
   // Initialize pipeline cleanly on mount
   const initialPipeline = (initialData?.pipeline?.nodes && initialData.pipeline.nodes.length > 0)
@@ -226,17 +225,6 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
 
       {/* Main canvas area */}
       <div className="flex-1">
-        {/* Tab navigation */}
-        <div className="flex items-center gap-1 px-4 py-2 bg-white border-b border-[#eceef2] text-sm">
-          <button
-            className="text-[#81858c] hover:text-[#1d1d1f] transition-colors"
-            onClick={() => navigate(`/v3/personal/${projectId}/chat`)}
-          >
-            💬 对话
-          </button>
-          <span className="text-[#d0d4d8]">|</span>
-          <span className="text-[#4f8cff] font-medium">🗺️ 编排</span>
-        </div>
         <Canvas key={pipelineKey} pipeline={pipeline} onChange={setPipeline} />
       </div>
     </div>
