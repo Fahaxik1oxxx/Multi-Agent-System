@@ -1,12 +1,26 @@
 import apiClient from './client';
 
+export interface UserProfile {
+  user_id: string;
+  user_name: string;
+  is_admin: boolean;
+  created_at: string;
+  avatar_seed: string;
+  bio: string;
+  email: string;
+}
+
 export const userApi = {
   getProfile: () =>
-    apiClient.get<{ user_id: string; user_name: string; is_admin: boolean }>(
-      '/user/profile'
-    ),
+    apiClient.get<UserProfile>('/user/profile'),
 
-  updateProfile: (data: { name?: string; password?: string }) =>
+  updateProfile: (data: {
+    name?: string;
+    password?: string;
+    bio?: string;
+    email?: string;
+    avatar_seed?: string;
+  }) =>
     apiClient.put('/user/profile', data),
 
   getConfig: () =>
