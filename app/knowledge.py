@@ -130,4 +130,10 @@ async def kb_delete(filename: str, user: dict = Depends(require_auth)):
         os.remove(path)
     except OSError as e:
         return JSONResponse({"success": False, "error": f"删除失败: {e}"}, status_code=500)
-    return JSONResponse({"success": True})
+    # 删除后重建索引，移除已删除文件的向量数据
+    from rag.knowledge_base import build_index
+    try:
+        n = build_index(user["user_id"])
+        return JSONResponse({"success": True, "chunks": n})
+    except Exception as e:
+        return JSONResponse({"success": True, "warning": f"文件已删除但索引重建失败: {str(e)[:100]}"})

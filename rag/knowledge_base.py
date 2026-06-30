@@ -160,10 +160,15 @@ def _build_index_locked(user_id: str) -> int:
     # 4. 淘汰旧缓存并关闭连接
     _evict_cached_vs(user_id)
 
-    # 5. 原子替换
+    # 5. 原子替换（Windows: os.rename 对已存在目录返回 PermissionError）
     if os.path.exists(persist_dir):
-        shutil.rmtree(persist_dir, ignore_errors=True)
-    os.rename(tmp_dir, persist_dir)
+        shutil.rmtree(persist_dir)
+    try:
+        os.rename(tmp_dir, persist_dir)
+    except OSError:
+        # Windows 回退：跨驱动器或目标残留时用 copytree
+        shutil.copytree(tmp_dir, persist_dir)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
     return len(chunks)
 

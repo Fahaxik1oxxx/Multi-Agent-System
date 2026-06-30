@@ -16,7 +16,7 @@ export const knowledgeApi = {
     formData.append('file', file);
     return apiClient.post<{ name: string; status: string }>('/knowledge/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
   },
-  deleteFile: (filename: string) => apiClient.delete(`/knowledge/files/${encodeURIComponent(filename)}`),
+  deleteFile: (filename: string) => apiClient.delete(`/knowledge/${encodeURIComponent(filename)}`),
   getStats: () => apiClient.get<KnowledgeStats>('/knowledge/stats'),
   rebuild: () => apiClient.post<{ status: string }>('/knowledge/rebuild'),
 };
