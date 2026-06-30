@@ -933,33 +933,26 @@ export function V3ChatPage() {
           </div>
 
           {/* ─── 统计 ─── */}
-          <div className="px-3 py-1.5 flex items-center justify-between text-[10px] text-[#9ca3af] border-t border-[#f0f2f5]">
+          <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-[#9ca3af] border-t border-[#f0f2f5]">
             <span>💬 {messages.length} 条消息</span>
-            <span>🧠 {enabledAgents.length}/{Object.keys(AGENT_META).length} Agent 已启用</span>
+            <span>🧠 {enabledAgents.length}/{Object.keys(AGENT_META).length} Agent</span>
           </div>
 
           {/* ─── 操作按钮 ─── */}
+          {projectId && (
           <div className="px-2 pb-2 pt-1 border-t border-[#f0f2f5]">
-            <div className="grid grid-cols-2 gap-1">
-              <button onClick={() => handleGenerateReport(currentThinking)}
-                disabled={currentThinking.length === 0 || generatingReport}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f0f4ff] transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                📄 报告
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={() => setOrchestraOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f0f4ff] transition-colors">
+                🗺️ 编排
               </button>
-              {projectId && (
-                <button onClick={() => setOrchestraOpen(true)}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f0f4ff] transition-colors">
-                  🗺️ 编排
-                </button>
-              )}
-              {projectId && (
-                <button onClick={() => setMonitorOpen(true)}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f0f4ff] transition-colors">
-                  📡 监控
-                </button>
-              )}
+              <button onClick={() => setMonitorOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f0f4ff] transition-colors">
+                📡 监控
+              </button>
             </div>
           </div>
+          )}
         </div>
       </div>
 
