@@ -4,6 +4,7 @@
 """
 
 import json
+import uuid
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
@@ -136,7 +137,7 @@ async def search_sessions(
 async def save_session(request: Request, user: dict = Depends(require_auth)):
     db = _get_db(request)
     data = await request.json()
-    sid = data.get("id") or str(int(__import__("time").time() * 1000))
+    sid = data.get("id") or str(uuid.uuid4())
     title = data.get("title", "")
     db.upsert_session(sid, user["user_id"], data.get("messages", []), title)
     return JSONResponse({"id": sid, "status": "ok"})
