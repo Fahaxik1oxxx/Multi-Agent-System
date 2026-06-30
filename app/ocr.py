@@ -66,4 +66,5 @@ def ocr_and_index(uploaded_file) -> int:
 
     from rag.knowledge_base import build_index
 
-    return build_index(user_id="shared")
+    chunk_count, _ = build_index(user_id="shared")
+    return chunk_count
