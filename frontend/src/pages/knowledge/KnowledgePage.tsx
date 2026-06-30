@@ -50,8 +50,13 @@ export function KnowledgePage() {
   const handleUpload = async (file: File) => {
     const toastId = toast.loading(`上传中: ${file.name}`);
     try {
-      await knowledgeApi.upload(file);
+      const res = await knowledgeApi.upload(file);
       toast.success(`上传完成: ${file.name}`, { id: toastId });
+      const uploadErrors = res.data?.errors;
+      if (uploadErrors && uploadErrors.length > 0) {
+        uploadErrors.forEach((e: any) => toast.error(`${e.file}: ${e.error}`));
+        toast.warning(`索引部分完成，${uploadErrors.length} 个文件失败`);
+      }
       qc.invalidateQueries({ queryKey: ['kb-files'] });
       qc.invalidateQueries({ queryKey: ['kb-stats'] });
     } catch {

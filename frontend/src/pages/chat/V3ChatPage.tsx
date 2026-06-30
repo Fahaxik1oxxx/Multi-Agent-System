@@ -590,7 +590,6 @@ export function V3ChatPage() {
   const [sideResults, setSideResults] = useState<Session[] | null>(null);
   const sideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sideFiles, setSideFiles] = useState<any[]>([]);
-  const sideFileInputRef = useRef<HTMLInputElement>(null);
   const modalFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -811,8 +810,6 @@ export function V3ChatPage() {
             )}
 
             <input ref={fileInputRef} type="file" multiple accept=".pdf,.txt,.png,.jpg,.jpeg" style={{ display: 'none' }} onChange={handleFileSelect} />
-            <input ref={sideFileInputRef} type="file" className="hidden" accept=".pdf,.txt,.png,.jpg,.jpeg"
-              onChange={e => { const f = e.target.files?.[0]; if (f) { knowledgeApi.upload(f).then(() => refreshKnowledgeFiles()).catch(() => {}); } }} />
 
             {/* 底部输入框 */}
             <div className="chat-input-area" style={{ maxWidth: '672px' }}>
@@ -996,8 +993,10 @@ export function V3ChatPage() {
                     errors.forEach((e: { file: string; error: string }) =>
                       toast.error(`${e.file}: ${e.error}`)
                     );
+                    toast.warning(`索引部分完成，${errors.length} 个文件失败`);
+                  } else {
+                    toast.success('重建完成');
                   }
-                  toast.success('重建完成');
                   refreshKnowledgeFiles();
                 }).catch((err: any) => {
                   const detail = err?.response?.data?.detail;

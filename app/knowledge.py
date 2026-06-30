@@ -110,7 +110,7 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
             return JSONResponse({
                 "success": True, "status": "ok", "filename": safe_name,
                 "indexed": True, "chunks": chunk_count,
-                "errors": errors if errors else None,
+                "errors": errors,
             })
         except Exception as e:
             return JSONResponse({
@@ -135,9 +135,7 @@ async def kb_delete(filename: str, user: dict = Depends(require_auth)):
     from rag.knowledge_base import build_index
     try:
         n, errors = build_index(user["user_id"])
-        resp = {"success": True, "chunks": n}
-        if errors:
-            resp["errors"] = errors
+        resp = {"success": True, "chunks": n, "errors": errors}
         return JSONResponse(resp)
     except Exception as e:
         return JSONResponse({"success": True, "warning": f"文件已删除但索引重建失败: {str(e)[:100]}"})

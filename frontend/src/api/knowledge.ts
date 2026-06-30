@@ -14,9 +14,9 @@ export const knowledgeApi = {
   upload: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return apiClient.post<{ name: string; status: string }>('/knowledge/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
+    return apiClient.post<{ success: boolean; status: string; filename: string; indexed: boolean; chunks: number; errors: Array<{ file: string; error: string }> }>('/knowledge/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 });
   },
   deleteFile: (filename: string) => apiClient.delete(`/knowledge/${encodeURIComponent(filename)}`),
   getStats: () => apiClient.get<KnowledgeStats>('/knowledge/stats'),
-  rebuild: () => apiClient.post<{ status: string }>('/knowledge/rebuild'),
+  rebuild: () => apiClient.post<{ success: boolean; added: number; errors: Array<{ file: string; error: string }> }>('/knowledge/rebuild'),
 };
