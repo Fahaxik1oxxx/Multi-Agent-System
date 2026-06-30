@@ -14,9 +14,17 @@ WORK_DIR = os.path.join(PROJECT_DIR, "coding")
 
 
 def _resolve_path(path: str) -> str:
+    """解析路径并校验不超出 WORK_DIR，防止路径遍历攻击。"""
     if path.startswith("coding/"):
-        return os.path.join(PROJECT_DIR, path)
-    return os.path.join(WORK_DIR, path)
+        full = os.path.join(PROJECT_DIR, path)
+    else:
+        full = os.path.join(WORK_DIR, path)
+
+    work_real = os.path.realpath(WORK_DIR)
+    full_real = os.path.realpath(full)
+    if not full_real.startswith(work_real + os.sep) and full_real != work_real:
+        raise ValueError(f"路径遍历检测: {path} (解析后: {full_real})")
+    return full
 
 
 # ===== 文件读写 =====
