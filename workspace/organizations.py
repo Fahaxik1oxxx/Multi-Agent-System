@@ -75,7 +75,7 @@ async def delete_org(request: Request, org_id: str, user: dict = Depends(require
 async def invite_member(request: Request, org_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
-    if role not in ("owner", "member") and not db.is_admin(user["user_id"]):
+    if role != "owner" and not db.is_admin(user["user_id"]):
         return JSONResponse({"error": "无权邀请"}, status_code=403)
     data = await request.json()
     user_name = (data.get("user_name") or "").strip()

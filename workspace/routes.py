@@ -218,7 +218,7 @@ async def delete_project(
     if not proj:
         return JSONResponse({"error": "项目不存在"}, status_code=404)
     role = db.get_member_role(proj["workspace_id"], user["user_id"])
-    if role not in ("owner", "member") and not db.is_admin(user["user_id"]):
+    if role != "owner" and proj.get("created_by") != user["user_id"] and not db.is_admin(user["user_id"]):
         return JSONResponse({"error": "无权删除"}, status_code=403)
     db.delete_project(project_id)
     return JSONResponse({"status": "ok"})

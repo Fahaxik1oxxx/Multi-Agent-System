@@ -10,6 +10,11 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_DIR not in sys.path:
     sys.path.insert(0, PROJECT_DIR)
 
+
+def _is_production() -> bool:
+    return os.getenv("ENV", "").lower() == "production"
+
+
 # 加载 .env 文件（优先级高于系统环境变量）
 from dotenv import load_dotenv
 
@@ -160,6 +165,16 @@ async def chat(request: Request):
         import traceback
 
         logging.error(f"聊天管道异常: {traceback.format_exc()}")
+        if _is_production():
+            return JSONResponse(
+                {
+                    "reply": "❌ 服务内部错误，请稍后重试。",
+                    "error": "internal_error",
+                    "thinking": [],
+                    "task_type": "错误",
+                },
+                status_code=500,
+            )
         return JSONResponse(
             {
                 "reply": f"❌ 执行失败: {str(e)}",
@@ -188,6 +203,16 @@ async def chat_guest(request: Request):
         import traceback
 
         logging.error(f"游客聊天异常: {traceback.format_exc()}")
+        if _is_production():
+            return JSONResponse(
+                {
+                    "reply": "❌ 服务内部错误，请稍后重试。",
+                    "error": "internal_error",
+                    "thinking": [],
+                    "task_type": "错误",
+                },
+                status_code=500,
+            )
         return JSONResponse(
             {
                 "reply": f"❌ 执行失败: {str(e)}",

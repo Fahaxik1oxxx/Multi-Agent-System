@@ -32,8 +32,7 @@ class CodeExecutor:
     def execute(self, code: str) -> dict:
         if DOCKER_OK:
             return self._docker_exec(code)
-        logging.warning("Docker 不可用，降级为 subprocess 执行（不安全）")
-        return self._subprocess_exec(code)
+        raise RuntimeError("Docker 不可用，代码执行已禁用。请安装 Docker 后重启服务。")
 
     def _docker_exec(self, code: str) -> dict:
         os.makedirs(WORKSPACE, exist_ok=True)

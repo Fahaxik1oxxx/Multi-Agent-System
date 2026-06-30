@@ -168,6 +168,9 @@ def run_workflow_streaming(data: dict, state: SessionState):
 
         tb = traceback.format_exc()
         logger.error("stream | pipeline exception: %s\n%s", e, tb)
-        push(state, {"type": "error", "content": f"{type(e).__name__}: {e}"})
+        if os.getenv("ENV") == "production":
+            push(state, {"type": "error", "content": "服务内部错误，请稍后重试。"})
+        else:
+            push(state, {"type": "error", "content": f"{type(e).__name__}: {e}"})
     finally:
         push_done(state)

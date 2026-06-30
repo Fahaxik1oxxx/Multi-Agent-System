@@ -1,7 +1,7 @@
 """知识库管理 API 路由。"""
 
 import os
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from user.helpers import require_auth
@@ -11,6 +11,8 @@ router = APIRouter()
 _BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ALLOWED_EXTENSIONS = {"pdf", "txt", "png", "jpg", "jpeg"}
+
+MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def _get_user_kb_dirs(user_id: str):
@@ -71,6 +73,8 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
             import io
 
             contents = await file.read()
+            if len(contents) > MAX_UPLOAD_SIZE:
+                raise HTTPException(status_code=413, detail=f"文件大小超过限制 ({MAX_UPLOAD_SIZE // 1024 // 1024}MB)")
             img = Image.open(io.BytesIO(contents))
             text = pytesseract.image_to_string(img, lang="chi_sim+eng")
 
@@ -89,6 +93,8 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
     else:
         doc_path = os.path.join(docs_dir, safe_name)
         contents = await file.read()
+        if len(contents) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail=f"文件大小超过限制 ({MAX_UPLOAD_SIZE // 1024 // 1024}MB)")
         with open(doc_path, "wb") as f:
             f.write(contents)
         # 同时复制到 coding/ 目录供 Agent 的 read_file 工具读取
