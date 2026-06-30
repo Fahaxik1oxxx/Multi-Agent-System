@@ -260,36 +260,44 @@ async def get_profile(request: Request, user: dict = Depends(require_auth)):
             "user_name": u["name"],
             "is_admin": is_admin,
             "created_at": u.get("created_at", ""),
+            "avatar_seed": u.get("avatar_seed", "") or user["user_id"],
+            "bio": u.get("bio", ""),
+            "email": u.get("email", ""),
         }
     )
 
 
 @user_router.put("/profile")
 async def update_profile(request: Request, user: dict = Depends(require_auth)):
-    """更新用户名或密码"""
     data = await request.json()
     db = _get_db(request)
     new_name = (data.get("name") or "").strip()
     new_password = data.get("password", "")
+    bio = (data.get("bio") or "").strip()
+    email = (data.get("email") or "").strip()
+    avatar_seed = (data.get("avatar_seed") or "").strip()
 
     if new_name:
         existing = db.get_user(new_name)
         if existing and existing["id"] != user["user_id"]:
             return JSONResponse({"error": "用户名已被占用"}, status_code=409)
-        # 更新用户名
-        with db._conn() as conn:
-            conn.execute(
-                "UPDATE users SET name = ? WHERE id = ?",
-                (new_name, user["user_id"]),
-            )
+        db.update_user_name(user["user_id"], new_name)
 
     if new_password:
+        if len(new_password) < 6:
+            return JSONResponse({"error": "密码至少 6 位"}, status_code=400)
         hashed = hash_password(new_password)
-        with db._conn() as conn:
-            conn.execute(
-                "UPDATE users SET password = ? WHERE id = ?",
-                (hashed, user["user_id"]),
-            )
+        db.update_user_password(user["user_id"], hashed)
+
+    if email and "@" not in email:
+        return JSONResponse({"error": "邮箱格式不正确"}, status_code=400)
+
+    fields = {}
+    if bio: fields["bio"] = bio
+    if email: fields["email"] = email
+    if avatar_seed: fields["avatar_seed"] = avatar_seed
+    if fields:
+        db.update_user_fields(user["user_id"], fields)
 
     return JSONResponse({"status": "ok"})
 

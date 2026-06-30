@@ -375,12 +375,32 @@ class Database:
             return None
 
     def get_user_by_id(self, user_id: str) -> dict | None:
-        """按 ID 查找用户。返回 {"id", "name", "created_at"} 或 None。"""
+        """按 ID 查找用户。返回 {"id", "name", "created_at", "avatar_seed", "bio", "email"} 或 None。"""
         with self._conn() as conn:
-            row = conn.execute("SELECT id, name, created_at FROM users WHERE id = ?", (user_id,)).fetchone()
+            row = conn.execute(
+                "SELECT id, name, created_at, avatar_seed, bio, email FROM users WHERE id = ?",
+                (user_id,),
+            ).fetchone()
             if row:
                 return dict(row)
             return None
+
+    def update_user_name(self, user_id: str, new_name: str):
+        """更新用户名。"""
+        with self._conn() as conn:
+            conn.execute("UPDATE users SET name = ? WHERE id = ?", (new_name, user_id))
+
+    def update_user_password(self, user_id: str, hashed_password: str):
+        """更新用户密码（已哈希）。"""
+        with self._conn() as conn:
+            conn.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_password, user_id))
+
+    def update_user_fields(self, user_id: str, fields: dict):
+        """更新用户非关键字段（bio, email, avatar_seed 等）。"""
+        sets = ", ".join(f"{k} = ?" for k in fields)
+        values = list(fields.values()) + [user_id]
+        with self._conn() as conn:
+            conn.execute(f"UPDATE users SET {sets} WHERE id = ?", values)
 
     # ── 会话 ──
 
