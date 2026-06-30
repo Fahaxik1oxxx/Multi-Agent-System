@@ -4,17 +4,7 @@ import { Loader2, GitBranch, Save, Maximize2 } from 'lucide-react';
 import { PageModal } from '@/components/shared/PageModal';
 import { OrchestrationPage } from '@/pages/project/OrchestrationPage';
 import { toast } from 'sonner';
-
-const ALL_AGENTS = [
-  { key: 'Planner', icon: '🧋', label: 'Planner', desc: '任务规划', color: '#4f8cff' },
-  { key: 'Retriever', icon: '🐍', label: 'Retriever', desc: '知识库检索', color: '#8b5cf6' },
-  { key: 'Coder', icon: '🫻', label: 'Coder', desc: '编写代码', color: '#10b981' },
-  { key: 'Writer', icon: '✍️', label: 'Writer', desc: '撰写文档', color: '#f59e0b' },
-  { key: 'Executor', icon: '⚙️', label: 'Executor', desc: '执行代码', color: '#8b5cf6' },
-  { key: 'Tester', icon: '✅', label: 'Tester', desc: 'QA 审阅', color: '#ef4444' },
-  { key: 'Summarizer', icon: '🧊', label: 'Summarizer', desc: '生成报告', color: '#4f8cff' },
-  { key: 'Bot', icon: '🤖', label: 'Bot', desc: '快捷问答', color: '#10b981' },
-];
+import { ALL_AGENTS } from '@/data/agents';
 
 export function ConfigBuilderPage() {
   const { projectId } = useParams<{ projectId: string }>();

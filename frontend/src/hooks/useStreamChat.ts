@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import apiClient from '@/api/client';
 
 // SSE event types from backend
@@ -249,6 +249,22 @@ export function useStreamChat() {
       sessionRef.current = null;
     }
     setStreaming((prev) => ({ ...prev, isStreaming: false }));
+  }, []);
+
+  // 组件卸载时自动取消流
+  useEffect(() => {
+    return () => {
+      if (readerRef.current) {
+        try { readerRef.current.cancel(); } catch {}
+        readerRef.current = null;
+      }
+      if (sessionRef.current) {
+        const sid = sessionRef.current;
+        sessionRef.current = null;
+        // fire-and-forget cancel
+        apiClient.post(`/chat/cancel/${sid}`).catch(() => {});
+      }
+    };
   }, []);
 
   const resetStream = useCallback(() => {

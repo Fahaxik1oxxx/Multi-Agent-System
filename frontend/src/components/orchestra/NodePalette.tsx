@@ -1,15 +1,7 @@
 import type { DragEvent } from 'react';
+import { ALL_AGENTS } from '@/data/agents';
 
-const AGENTS = [
-  { name: 'Planner', icon: '🧋' },
-  { name: 'Retriever', icon: '🐍' },
-  { name: 'Coder', icon: '🫻' },
-  { name: 'Writer', icon: '✍️' },
-  { name: 'Executor', icon: '⚙️' },
-  { name: 'Tester', icon: '✅' },
-  { name: 'Summarizer', icon: '🧊' },
-  { name: 'Bot', icon: '🤖' },
-];
+const AGENTS = ALL_AGENTS.map(a => ({ name: a.key, icon: a.icon }));
 
 export function NodePalette() {
   const onDragStart = (event: DragEvent, type: string, agent?: string) => {

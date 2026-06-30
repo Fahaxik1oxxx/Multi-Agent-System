@@ -22,6 +22,7 @@ const AGENTS_DESIGN = [
   { key: 'Tester', icon: '✅', label: 'Tester', desc: 'QA审阅' },
   { key: 'Summarizer', icon: '🧊', label: 'Summarizer', desc: '生成报告' },
   { key: 'Bot', icon: '🤖', label: 'Bot', desc: '快捷问答' },
+  { key: 'Executor', icon: '⚙️', label: 'Executor', desc: '执行代码' },
 ];
 
 const DEFAULT_PROMPTS: Record<string, string> = {
@@ -69,7 +70,7 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
     queryFn: async () => { const res = await userApi.getConfig(); return res.data; },
   });
 
-  useState(() => { if (config?.roles) setRoleModels({ ...config.roles }); });
+  useEffect(() => { if (config?.roles) setRoleModels({ ...config.roles }); }, [config?.roles]);
 
   const systemModels = Array.isArray(config?.system_models) ? config.system_models : [];
   const customModels = Array.isArray(config?.models) ? config.models : [];

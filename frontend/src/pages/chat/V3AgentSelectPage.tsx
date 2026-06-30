@@ -3,17 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { projectsApi } from '@/api/projects';
 import { Check, Sparkles, Puzzle, FileCode, Bot, Loader2, GitBranch, Palette, Plus, FolderKanban } from 'lucide-react';
 import { toast } from 'sonner';
-
-const ALL_AGENTS = [
-  { key: 'Planner', icon: '🧋', label: 'Planner', desc: '任务规划', color: '#4f8cff' },
-  { key: 'Retriever', icon: '🐍', label: 'Retriever', desc: '知识库检索', color: '#8b5cf6' },
-  { key: 'Coder', icon: '🫻', label: 'Coder', desc: '编写代码', color: '#10b981' },
-  { key: 'Writer', icon: '✍️', label: 'Writer', desc: '撰写文档', color: '#f59e0b' },
-  { key: 'Executor', icon: '⚙️', label: 'Executor', desc: '执行代码', color: '#8b5cf6' },
-  { key: 'Tester', icon: '✅', label: 'Tester', desc: 'QA 审阅', color: '#ef4444' },
-  { key: 'Summarizer', icon: '🧊', label: 'Summarizer', desc: '生成报告', color: '#4f8cff' },
-  { key: 'Bot', icon: '🤖', label: 'Bot', desc: '快捷问答', color: '#10b981' },
-];
+import { ALL_AGENTS } from '@/data/agents';
 
 const PRESETS = [
   { id: 'auto', icon: Sparkles, label: '默认智能体', desc: '8 Agent 全流水线协作', agents: ALL_AGENTS.map(a => a.key), color: '#4f8cff' },
@@ -139,7 +129,7 @@ export function V3AgentSelectPage() {
 
           {/* 模板市场入口 */}
           <button
-            onClick={() => navigate('/v3/templates')}
+            onClick={() => navigate('/v3/personal/templates')}
             className="flex items-center gap-3 w-full p-4 rounded-xl border border-dashed border-[#e0e4e8] bg-white hover:border-[#4f8cff]/30 transition-all text-left"
           >
             <div className="w-10 h-10 rounded-xl bg-[#f9fafb] flex items-center justify-center shrink-0">

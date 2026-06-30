@@ -15,28 +15,11 @@ import type { Session } from '@/types/api';
 import type { Project } from '@/types/workspace';
 import { Search, MessageSquare, Plus, ChevronLeft, ChevronRight, ChevronDown, Check, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { AGENT_META, AGENT_ICONS, AGENT_COLORS } from '@/data/agents';
 
-// ── Constants ──
-const AGENT_META: Record<string, { icon: string; color: string }> = {
-  Planner: { icon: '🧋', color: '#4f8cff' },
-  Retriever: { icon: '🐍', color: '#8b5cf6' },
-  Coder: { icon: '🫻', color: '#10b981' },
-  Writer: { icon: '✍️', color: '#f59e0b' },
-  Tester: { icon: '✅', color: '#ef4444' },
-  Summarizer: { icon: '🧊', color: '#4f8cff' },
-  Bot: { icon: '🤖', color: '#10b981' },
-  Executor: { icon: '⚙️', color: '#8b5cf6' },
-};
-
-const ICONS: Record<string, string> = {
-  Planner: '🧋', Retriever: '🐍', Coder: '🫻', Writer: '✍️',
-  Tester: '✅', Summarizer: '🧊', Bot: '🤖', Executor: '⚙️',
-};
-const COLORS: Record<string, string> = {
-  Planner: '#4f8cff', Retriever: '#8b5cf6', Coder: '#10b981',
-  Writer: '#f59e0b', Tester: '#ef4444', Summarizer: '#4f8cff',
-  Bot: '#10b981', Executor: '#8b5cf6',
-};
+// 本地别名（保持向下兼容）
+const ICONS = AGENT_ICONS;
+const COLORS = AGENT_COLORS;
 
 interface ThinkingEntry { name: string; content: string; }
 
@@ -153,10 +136,6 @@ export function V3ChatPage() {
   // ── 左侧栏 ──
   const [leftOpen, setLeftOpen] = useState(true);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Session[] | null>(null);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
 
   // ── 右侧栏 ──
   const [rightOpen, setRightOpen] = useState(false);

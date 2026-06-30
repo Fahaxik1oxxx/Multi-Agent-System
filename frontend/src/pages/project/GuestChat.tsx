@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import apiClient from '@/api/client';
 
 export function GuestChat() {
   const [input, setInput] = useState('');
@@ -15,12 +16,8 @@ export function GuestChat() {
     setInput('');
     setLoading(true);
     try {
-      const res = await fetch('/api/chat/guest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg, lane_mode: 'auto', history: [] }),
-      });
-      const data = await res.json();
+      const res = await apiClient.post('/chat/guest', { message: userMsg, lane_mode: 'auto', history: [] });
+      const data = res.data;
       setReply(data.reply || '');
       setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || '' }]);
     } catch {

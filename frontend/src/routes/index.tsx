@@ -59,10 +59,8 @@ export const router = createBrowserRouter([
         { path: 'templates', element: <TemplateMarket /> },
       ]},
       { path: 'personal/agents', element: <div className="p-6 max-w-5xl mx-auto"><AgentDesigner /></div> },
-      { path: 'templates', element: <TemplateMarket /> },
       { path: 'team', element: <TeamHome /> },
       { path: 'team/:orgId', element: <TeamChat /> },
-      { path: 'knowledge', element: <KnowledgePage /> },
       {
         path: 'admin',
         element: (

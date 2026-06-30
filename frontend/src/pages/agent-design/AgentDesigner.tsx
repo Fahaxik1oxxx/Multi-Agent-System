@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { ALL_AGENTS } from '@/data/agents';
+
+const AGENTS = ALL_AGENTS.map(a => ({ key: a.key, icon: a.icon, label: a.key, desc: a.desc }));
 
 const PROMPT_STORAGE_KEY = 'custom_prompts';
 
@@ -10,16 +13,6 @@ function loadPrompts(): Record<string, string> {
 function savePrompts(prompts: Record<string, string>) {
   localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prompts));
 }
-
-const AGENTS = [
-  { key: 'Planner', icon: '🧋', label: 'Planner', desc: '任务规划' },
-  { key: 'Retriever', icon: '🐍', label: 'Retriever', desc: '知识检索' },
-  { key: 'Coder', icon: '🫻', label: 'Coder', desc: '编写代码' },
-  { key: 'Writer', icon: '✍️', label: 'Writer', desc: '撰写文档' },
-  { key: 'Tester', icon: '✅', label: 'Tester', desc: 'QA审阅' },
-  { key: 'Summarizer', icon: '🧊', label: 'Summarizer', desc: '生成报告' },
-  { key: 'Bot', icon: '🤖', label: 'Bot', desc: '快捷问答' },
-];
 
 const DEFAULT_PROMPTS: Record<string, string> = {
   Planner: '你是高级项目经理。根据用户需求制定详细的执行计划。\n用编号列表列出执行步骤，每步含：目标、技术/工具、预期输出。\n最后一行必须是 \'task_type: coding\' 或 \'task_type: writing\' 或 \'task_type: analysis\'，表示任务类型。\n\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码片段」这一步，编译/运行由用户自行完成，task_type 标为 coding。\n如用户提问涉及最新资讯/实时信息/当前事件，首先使用 web_search 工具搜索获取最新数据。\n分析类任务（数据分析/CSV/Excel/统计/图表）→ task_type: analysis。',

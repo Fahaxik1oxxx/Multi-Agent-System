@@ -3,6 +3,10 @@
 
 :root {
   --brand-primary: #4f8cff;
+  --brand-gradient: linear-gradient(135deg, #4f8cff, #6c5ce7);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
   --bg-chat: #FFFFFF;
   --bg-sidebar: #F9FAFB;
   --text-primary: #1d1d1f;

@@ -29,8 +29,6 @@ function getBreadcrumbs(pathname: string): { label: string; path?: string }[] | 
     if (s[3] === 'orchestra') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '编排' }];
     if (s[3] === 'monitor') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '监控' }];
   }
-  if (section === 'knowledge') return [{ label: '个人空间', path: '/v3/personal' }, { label: '知识库' }];
-  if (section === 'templates') return [{ label: '个人空间', path: '/v3/personal' }, { label: '模板市场' }];
   if (section === 'personal' && s[3] === 'templates') return [{ label: '个人空间', path: '/v3/personal' }, { label: '模板市场' }];
   if (section === 'team') {
     if (s.length === 2) return [{ label: '团队' }, { label: '组织' }];
