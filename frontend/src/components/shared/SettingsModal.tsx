@@ -5,6 +5,16 @@ import { useAuthStore } from '@/stores/authStore';
 import { Eye, EyeOff, Save, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+const AVATAR_COLORS = ['#4f8cff', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#6366f1'];
+
+function avatarColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
 const TABS = [
   { id: 'account', label: '账号', icon: '🧑' },
   { id: 'model', label: '模型', icon: '🤖' },
@@ -44,6 +54,8 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
   // ── 账号 ──
   const [editName, setEditName] = useState('');
   const [editPassword, setEditPassword] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editBio, setEditBio] = useState('');
 
   // ── 模型 ──
   const [apiKey, setApiKey] = useState('');
@@ -57,7 +69,13 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
   // ── 查询 ──
   const { data: profile } = useQuery({
     queryKey: ['profile'],
-    queryFn: async () => { const res = await userApi.getProfile(); setEditName(res.data.user_name); return res.data; },
+    queryFn: async () => {
+      const res = await userApi.getProfile();
+      setEditName(res.data.user_name);
+      setEditEmail(res.data.email || '');
+      setEditBio(res.data.bio || '');
+      return res.data;
+    },
   });
 
   const { data: keyStatus } = useQuery({
@@ -81,9 +99,11 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
   // ── mutations ──
   const profileMutation = useMutation({
     mutationFn: async () => {
-      const data: { name?: string; password?: string } = {};
+      const data: Record<string, string> = {};
       if (editName && editName !== user?.user_name) data.name = editName;
       if (editPassword) data.password = editPassword;
+      if (editEmail !== (profile?.email || '')) data.email = editEmail;
+      if (editBio !== (profile?.bio || '')) data.bio = editBio;
       if (Object.keys(data).length === 0) throw new Error('无变更');
       await userApi.updateProfile(data);
     },
@@ -124,20 +144,55 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
 
         {/* ═══ 账号 ═══ */}
         {tab === 'account' && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <h3 className="text-sm font-semibold text-[#1d1d1f]">账号</h3>
-            <div>
-              <label className="text-[10px] text-[#81858c] block mb-1">用户 ID</label>
-              <input className="input input-bordered w-full text-xs font-mono" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} value={profile?.user_id ?? ''} disabled />
+
+            <div className="flex gap-4">
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: avatarColor(profile?.avatar_seed || ''),
+                color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 27, fontWeight: 700,
+                userSelect: 'none', flexShrink: 0,
+              }}>{(profile?.user_name || '?').charAt(0).toUpperCase()}</div>
+
+              <div className="flex-1 space-y-2.5">
+                <div>
+                  <label className="text-[10px] text-[#81858c] block mb-0.5">用户名</label>
+                  <input className="input input-bordered w-full text-xs"
+                    style={{ borderRadius: '8px', borderColor: '#e0e4e8' }}
+                    value={editName} onChange={e => setEditName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#81858c] block mb-0.5">邮箱</label>
+                  <input className="input input-bordered w-full text-xs"
+                    style={{ borderRadius: '8px', borderColor: '#e0e4e8' }}
+                    value={editEmail} onChange={e => setEditEmail(e.target.value)}
+                    placeholder="example@mail.com" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#81858c] block mb-0.5">个人简介</label>
+                  <input className="input input-bordered w-full text-xs"
+                    style={{ borderRadius: '8px', borderColor: '#e0e4e8' }}
+                    value={editBio} onChange={e => setEditBio(e.target.value)}
+                    placeholder="介绍一下自己..." />
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#81858c] block mb-0.5">新密码（留空不修改）</label>
+                  <input type="password" className="input input-bordered w-full text-xs"
+                    style={{ borderRadius: '8px', borderColor: '#e0e4e8' }}
+                    value={editPassword} onChange={e => setEditPassword(e.target.value)}
+                    placeholder="至少 6 位" />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="text-[10px] text-[#81858c] block mb-1">用户名</label>
-              <input className="input input-bordered w-full text-xs" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} value={editName} onChange={e => setEditName(e.target.value)} />
+
+            <div className="flex gap-4 text-[10px] text-[#9ca3af]">
+              <span>用户 ID: {profile?.user_id ?? ''}</span>
+              <span>注册时间: {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('zh-CN') : ''}</span>
             </div>
-            <div>
-              <label className="text-[10px] text-[#81858c] block mb-1">新密码（留空不修改）</label>
-              <input type="password" className="input input-bordered w-full text-xs" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }} value={editPassword} onChange={e => setEditPassword(e.target.value)} placeholder="至少 6 位" />
-            </div>
+
             <button className="btn btn-xs" disabled={profileMutation.isPending} onClick={() => profileMutation.mutate()}
               style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>保存</button>
           </div>
