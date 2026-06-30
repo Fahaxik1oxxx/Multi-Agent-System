@@ -18,13 +18,14 @@ from cryptography.fernet import Fernet
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 5
+    TARGET_SCHEMA_VERSION = 6
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
     # 3 → 新增: workspaces, workspace_members, projects + is_admin 列
     # 4 → 新增: eval_logs
     # 5 → 新增: organizations, org_members, org_channels, org_messages, org_todos
+    # 6 → 新增: 10 个关键索引
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -67,6 +68,15 @@ class Database:
             key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
             self._fernet_cache = Fernet(key)
         return self._fernet_cache
+
+    @staticmethod
+    def _create_index_safe(conn, idx_name: str, table: str, column: str):
+        cur = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND name=?",
+            (idx_name,),
+        )
+        if not cur.fetchone():
+            conn.execute(f"CREATE INDEX {idx_name} ON {table}({column})")
 
     def _run_migration(self, conn, version: int):
         """执行指定版本的数据库迁移（幂等 — 全部使用 IF NOT EXISTS）"""
@@ -222,6 +232,17 @@ class Database:
                     FOREIGN KEY (assignee_id) REFERENCES users(id)
                 );
             """)
+        elif version == 6:
+            self._create_index_safe(conn, "idx_sessions_user", "sessions", "user_id")
+            self._create_index_safe(conn, "idx_sessions_updated", "sessions", "updated_at")
+            self._create_index_safe(conn, "idx_org_msgs_channel", "org_messages", "channel_id")
+            self._create_index_safe(conn, "idx_org_msgs_created", "org_messages", "created_at")
+            self._create_index_safe(conn, "idx_org_channels_org", "org_channels", "org_id")
+            self._create_index_safe(conn, "idx_org_members_org", "org_members", "org_id")
+            self._create_index_safe(conn, "idx_org_members_user", "org_members", "user_id")
+            self._create_index_safe(conn, "idx_org_todos_org", "org_todos", "org_id")
+            self._create_index_safe(conn, "idx_ws_members_user", "workspace_members", "user_id")
+            self._create_index_safe(conn, "idx_projects_ws", "projects", "workspace_id")
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
@@ -327,7 +348,7 @@ class Database:
 
     def insert_user(self, name: str, hashed_password: str) -> str:
         """插入用户，返回 user_id。"""
-        uid = str(uuid.uuid4())[:8]
+        uid = str(uuid.uuid4())
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO users (id, name, password) VALUES (?, ?, ?)",
@@ -383,12 +404,15 @@ class Database:
     def upsert_session(self, session_id: str, user_id: str, messages: list[dict], title: str = "") -> str:
         msgs_json = json.dumps(messages, ensure_ascii=False)
         with self._conn() as conn:
-            existing = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            existing = conn.execute(
+                "SELECT id FROM sessions WHERE id = ? AND user_id = ?",
+                (session_id, user_id),
+            ).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE sessions SET user_id=?, title=?, messages=?, "
-                    "updated_at=datetime('now','localtime') WHERE id=?",
-                    (user_id, title, msgs_json, session_id),
+                    "UPDATE sessions SET title=?, messages=?, "
+                    "updated_at=datetime('now','localtime') WHERE id=? AND user_id=?",
+                    (title, msgs_json, session_id, user_id),
                 )
             else:
                 conn.execute(
@@ -413,7 +437,7 @@ class Database:
     # ── 工作空间 ──
 
     def create_workspace(self, name: str, description: str, owner_id: str) -> str:
-        wid = str(uuid.uuid4())[:8]
+        wid = str(uuid.uuid4())
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO workspaces (id, name, description, owner_id) VALUES (?, ?, ?, ?)",
@@ -506,7 +530,7 @@ class Database:
     # ── 项目 ──
 
     def create_project(self, workspace_id: str, name: str, description: str, created_by: str) -> str:
-        pid = str(uuid.uuid4())[:8]
+        pid = str(uuid.uuid4())
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO projects (id, workspace_id, name, description, created_by) VALUES (?, ?, ?, ?, ?)",
@@ -584,7 +608,7 @@ class Database:
         elapsed_ms: int = 0,
         has_error: int = 0,
     ) -> str:
-        eid = str(uuid.uuid4())[:8]
+        eid = str(uuid.uuid4())
         with self._conn() as conn:
             conn.execute(
                 "INSERT INTO eval_logs (id, project_id, session_id, task_type, "
@@ -759,13 +783,15 @@ class Database:
     def delete_organization(self, org_id: str) -> bool:
         with self._conn() as conn:
             conn.execute(
-                "DELETE FROM org_messages WHERE channel_id IN (SELECT id FROM org_channels WHERE org_id = ?)", (org_id,)
+                "DELETE FROM org_messages WHERE channel_id IN "
+                "(SELECT id FROM org_channels WHERE org_id = ?)",
+                (org_id,),
             )
             conn.execute("DELETE FROM org_channels WHERE org_id = ?", (org_id,))
             conn.execute("DELETE FROM org_todos WHERE org_id = ?", (org_id,))
             conn.execute("DELETE FROM org_members WHERE org_id = ?", (org_id,))
-            conn.execute("DELETE FROM organizations WHERE id = ?", (org_id,))
-        return True
+            cur = conn.execute("DELETE FROM organizations WHERE id = ?", (org_id,))
+            return cur.rowcount > 0
 
     def create_channel(self, org_id: str, name: str) -> str:
         cid = str(uuid.uuid4())
@@ -850,7 +876,9 @@ class Database:
             row = conn.execute("SELECT name FROM users WHERE id = ?", (user_id,)).fetchone()
         return row["name"] if row else "未知用户"
 
-    def dump_all(self) -> str:
+    def dump_all(self) -> dict:
+        if os.getenv("DEBUG", "").lower() != "true":
+            raise PermissionError("dump_all 仅开发模式可用（需设置 DEBUG=true）")
         """返回数据库全部内容的格式化字符串，用于实时观察。"""
         with self._conn() as conn:
             lines = [f"\n=== {_time.strftime('%H:%M:%S')} DB DUMP ==="]
