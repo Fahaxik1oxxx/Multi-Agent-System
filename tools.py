@@ -54,12 +54,12 @@ def write_file(path: str, content: str) -> str:
 
 
 @tool
-def search_knowledge(query: str) -> str:
-    """在知识库中搜索相关文档。输入查询字符串，返回相关文本片段（最多3条）。"""
+def search_knowledge(query: str, user_id: str = "shared") -> str:
+    """在知识库中搜索相关文档。参数 query: 查询字符串, user_id: 用户ID（默认 shared）。"""
     try:
         from rag.knowledge_base import search
 
-        results = search(query, user_id="shared")
+        results = search(query, user_id=user_id)
         if not results:
             return "知识库中未找到相关信息，请使用自身知识完成任务。"
         filtered = [r for r in results if len(r.strip()) > 50]

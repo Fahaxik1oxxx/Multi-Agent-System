@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { AdminGuard } from '@/components/auth/AdminGuard';
 import { V3AppShell } from '@/components/layout/V3AppShell';
@@ -22,6 +22,10 @@ import { TeamChat } from '@/pages/team/TeamChat';
 import { KnowledgePage } from '@/pages/knowledge/KnowledgePage';
 
 export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <Navigate to="/v3" replace />,
+  },
   {
     path: '/login',
     element: <LoginPage />,

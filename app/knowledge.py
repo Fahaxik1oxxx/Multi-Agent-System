@@ -103,7 +103,20 @@ async def kb_upload(file: UploadFile = File(...), user: dict = Depends(require_a
         coding_dir = os.path.join(_BASE, "coding")
         os.makedirs(coding_dir, exist_ok=True)
         shutil.copy2(doc_path, os.path.join(coding_dir, safe_name))
-        return JSONResponse({"success": True, "filename": safe_name})
+        # 上传后自动重建索引
+        try:
+            from rag.knowledge_base import build_index
+            chunk_count = build_index(user["user_id"])
+            return JSONResponse({
+                "success": True, "status": "ok", "filename": safe_name,
+                "indexed": True, "chunks": chunk_count,
+            })
+        except Exception as e:
+            return JSONResponse({
+                "success": True, "status": "ok", "filename": safe_name,
+                "indexed": False,
+                "warning": f"文件已保存但索引失败，请手动重建: {str(e)[:100]}",
+            })
 
 
 @router.delete("/{filename}")

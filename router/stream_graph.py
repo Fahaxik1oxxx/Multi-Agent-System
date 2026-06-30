@@ -139,7 +139,8 @@ def retriever_node(state: StreamWorkflowState) -> dict:
     session = state["session"]
     logger.info("stream_graph | retriever_node | enter")
     push(session, {"type": "agent_start", "name": "Retriever"})
-    kb_result = search_knowledge.invoke(state["user_input"])
+    user_id = state.get("user_id", "shared")
+    kb_result = search_knowledge.invoke({"query": state["user_input"], "user_id": user_id})
     prompt = (
         f"{get_prompt('Retriever', state)}\n\n"
         f"任务：{state['user_input']}\n"
