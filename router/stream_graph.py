@@ -465,6 +465,31 @@ def web_search_node(state: StreamWorkflowState) -> dict:
     }
 
 
+def _resolve_skip(edges: list[dict], agent_states: dict[str, str]) -> list[dict]:
+    """跳过 agent_states 为 'off' 的节点，重连边"""
+    if not agent_states:
+        return edges
+    off_nodes = {k for k, v in agent_states.items() if v == "off"}
+    if not off_nodes:
+        return edges
+    out_edges: dict[str, list] = {}
+    for e in edges:
+        out_edges.setdefault(e["source"], []).append(e["target"])
+    new_edges = []
+    for e in edges:
+        src, tgt = e["source"], e["target"]
+        if src in off_nodes:
+            continue
+        resolved = tgt
+        seen = set()
+        while resolved in off_nodes and resolved not in seen:
+            seen.add(resolved)
+            next_nodes = out_edges.get(resolved, [])
+            resolved = next_nodes[0] if next_nodes else tgt
+        new_edges.append({"source": src, "target": resolved})
+    return new_edges
+
+
 # —— 构建 LangGraph ——
 def build_stream_workflow() -> StateGraph:
     logger.info("stream_graph | build_static | 9 agent nodes, 7 conditional edges")

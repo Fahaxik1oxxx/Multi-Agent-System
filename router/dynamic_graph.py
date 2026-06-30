@@ -9,7 +9,8 @@ from router.stream_graph import (
     writer_node,
     executor_node,
     tester_node,
-    summarizer_node
+    summarizer_node,
+    _resolve_skip,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,16 +27,17 @@ NODE_FUNCTIONS = {
     "Summarizer": summarizer_node
 }
 
-def build_dynamic_workflow(pipeline_config: dict) -> StateGraph:
+def build_dynamic_workflow(pipeline_config: dict, agent_states: dict[str, str] = None) -> StateGraph:
     """Build a LangGraph StateGraph dynamically from the frontend PipelineConfig."""
     logger.info("dynamic_graph | build started | nodes=%d | edges=%d",
                 len(pipeline_config.get("nodes", [])),
                 len(pipeline_config.get("edges", [])))
 
     wf = StateGraph(StreamWorkflowState)
-    
+
     nodes = pipeline_config.get("nodes", [])
     edges = pipeline_config.get("edges", [])
+    edges = _resolve_skip(edges, agent_states or {})
     
     node_map = {n["id"]: n for n in nodes}
     

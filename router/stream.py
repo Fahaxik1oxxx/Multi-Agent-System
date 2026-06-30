@@ -119,7 +119,8 @@ def run_workflow_streaming(data: dict, state: SessionState):
 
         if pipeline_config and pipeline_config.get("nodes"):
             from router.dynamic_graph import build_dynamic_workflow
-            graph = build_dynamic_workflow(pipeline_config)
+            agent_states = data.get("agent_states", {})
+            graph = build_dynamic_workflow(pipeline_config, agent_states)
             graph_source = "dynamic"
         else:
             graph = _stream_graph

@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     session_id: str | None = Field(default=None)
     history: list = Field(default_factory=list)
     web_search_enabled: bool = Field(default=False)
+    agent_states: dict[str, str] = Field(default_factory=dict)
 
 
 @router.post("/chat/start")
