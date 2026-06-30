@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Home, User, Users, Settings, LogOut, Shield } from 'lucide-react';
 import { SettingsModal } from '@/components/shared/SettingsModal';
 import { PageModal } from '@/components/shared/PageModal';
+import { avatarColor } from '@/lib/avatar';
 
 const navItems = [
   { to: '/v3', icon: Home, label: '对话' },
@@ -65,7 +66,8 @@ export function V3Sidebar() {
         <div className="relative" ref={menuRef}>
           <button onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-1.5 text-xs text-[#81858c] hover:text-[#4b5563]">
-            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[9px] font-medium text-gray-500">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+              style={{ background: avatarColor(user?.user_id || 'guest') }}>
               {isGuest ? '?' : (user?.user_name?.charAt(0).toUpperCase() || '?')}
             </div>
             <span className="hidden sm:inline truncate max-w-[60px]">{isGuest ? '游客' : user?.user_name || '?'}</span>

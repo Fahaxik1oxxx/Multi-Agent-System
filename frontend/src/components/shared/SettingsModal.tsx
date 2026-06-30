@@ -4,16 +4,7 @@ import { userApi } from '@/api/user';
 import { useAuthStore } from '@/stores/authStore';
 import { Eye, EyeOff, Save, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-const AVATAR_COLORS = ['#4f8cff', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#6366f1'];
-
-function avatarColor(seed: string): string {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
+import { avatarColor } from '@/lib/avatar';
 
 const TABS = [
   { id: 'account', label: '账号', icon: '🧑' },
