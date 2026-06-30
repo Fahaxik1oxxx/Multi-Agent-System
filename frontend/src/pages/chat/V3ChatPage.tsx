@@ -1041,7 +1041,7 @@ export function V3ChatPage() {
 
       {/* 监控弹窗 */}
       <PageModal open={monitorOpen} onClose={() => setMonitorOpen(false)} title="📡 执行监控" width="85vw">
-        {projectId && <MonitorPage />}
+        {projectId && <MonitorPage inlineSessionId={streaming.sessionId || undefined} />}
       </PageModal>
 
       {/* 报告预览弹窗 */}

@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 7
+    TARGET_SCHEMA_VERSION = 8
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
@@ -253,6 +253,20 @@ class Database:
                     conn.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
                 except sqlite3.OperationalError:
                     pass  # 列已存在
+        elif version == 8:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS step_logs (
+                    id           TEXT PRIMARY KEY,
+                    session_id   TEXT NOT NULL,
+                    task_type    TEXT DEFAULT '',
+                    agent_name   TEXT NOT NULL,
+                    status       TEXT DEFAULT 'done',
+                    elapsed_ms   INTEGER DEFAULT 0,
+                    token_count  INTEGER DEFAULT 0,
+                    created_at   TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_step_session ON step_logs(session_id);
+            """)
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
@@ -648,10 +662,16 @@ class Database:
             )
         return eid
 
-    def get_eval_stats(self, project_id: str = "") -> dict:
+    def get_eval_stats(self, project_id: str = "", days: int = 0) -> dict:
         with self._conn() as conn:
-            where = "WHERE project_id = ?" if project_id else ""
-            params = (project_id,) if project_id else ()
+            clauses = []
+            params = []
+            if project_id:
+                clauses.append("project_id = ?")
+                params.append(project_id)
+            if days > 0:
+                clauses.append(f"created_at >= datetime('now', 'localtime', '-{days} days')")
+            where = "WHERE " + " AND ".join(clauses) if clauses else ""
             total = conn.execute(f"SELECT COUNT(*) FROM eval_logs {where}", params).fetchone()[0]
             if total == 0:
                 return {
@@ -683,6 +703,36 @@ class Database:
                 "task_types": {r["task_type"]: r["cnt"] for r in task_type_rows},
                 "daily": [dict(r) for r in daily_rows],
             }
+
+    # ── 步骤日志 (Monitor) ──
+
+    def create_step_log(self, session_id: str, task_type: str, agent_name: str, status: str, elapsed_ms: int, token_count: int) -> str:
+        sid = str(uuid.uuid4())[:8]
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO step_logs (id, session_id, task_type, agent_name, status, elapsed_ms, token_count) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (sid, session_id, task_type, agent_name, status, elapsed_ms, token_count),
+            )
+        return sid
+
+    def get_session_steps(self, session_id: str) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT task_type, agent_name as name, status, elapsed_ms, token_count "
+                "FROM step_logs WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,),
+            ).fetchall()
+            merged = {}
+            for r in rows:
+                name = r["name"]
+                if name not in merged:
+                    merged[name] = dict(r)
+                else:
+                    merged[name]["elapsed_ms"] += r["elapsed_ms"]
+                    merged[name]["token_count"] += r["token_count"]
+                    merged[name]["status"] = r["status"]
+            return list(merged.values())
 
     # ── 用户配置 ──
 
