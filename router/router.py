@@ -37,17 +37,7 @@ async def chat_start(
     request: Request,
     user: dict = Depends(require_auth),
 ):
-    stream_id = str(uuid.uuid4())
-    db_session_id = body.session_id or str(uuid.uuid4())
-
-    logger.info(
-        "api | chat_start | stream=%s | db_session=%s | user=%s | input=%s | lane=%s",
-        stream_id,
-        db_session_id,
-        user["user_id"],
-        body.message[:60],
-        body.lane_mode,
-    )
+    session_id = body.session_id or str(uuid.uuid4())
 
     state = SessionState(
         queue=asyncio.Queue(),
@@ -56,9 +46,9 @@ async def chat_start(
         created_at=time.time(),
         user_id=user["user_id"],
         db=request.app.state.db,
-        session_id=db_session_id,
+        session_id=session_id,
     )
-    sessions[stream_id] = state
+    sessions[session_id] = state
 
     thread = threading.Thread(
         target=run_workflow_streaming,
@@ -67,7 +57,7 @@ async def chat_start(
     )
     thread.start()
 
-    return JSONResponse({"session_id": stream_id})
+    return JSONResponse({"session_id": session_id})
 
 
 @router.get("/chat/stream/{session_id}")
