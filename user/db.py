@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 6
+    TARGET_SCHEMA_VERSION = 7
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
@@ -26,6 +26,7 @@ class Database:
     # 4 → 新增: eval_logs
     # 5 → 新增: organizations, org_members, org_channels, org_messages, org_todos
     # 6 → 新增: 10 个关键索引
+    # 7 → 新增: users 表 avatar_seed, bio, email 列
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -83,10 +84,13 @@ class Database:
         if version == 1:
             conn.executescript("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id         TEXT PRIMARY KEY,
-                    name       TEXT NOT NULL UNIQUE,
-                    password   TEXT NOT NULL DEFAULT '',
-                    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+                    id          TEXT PRIMARY KEY,
+                    name        TEXT NOT NULL UNIQUE,
+                    password    TEXT NOT NULL DEFAULT '',
+                    avatar_seed TEXT DEFAULT '',
+                    bio         TEXT DEFAULT '',
+                    email       TEXT DEFAULT '',
+                    created_at  TEXT DEFAULT (datetime('now', 'localtime'))
                 );
                 CREATE TABLE IF NOT EXISTS sessions (
                     id         TEXT PRIMARY KEY,
@@ -243,6 +247,12 @@ class Database:
             self._create_index_safe(conn, "idx_org_todos_org", "org_todos", "org_id")
             self._create_index_safe(conn, "idx_ws_members_user", "workspace_members", "user_id")
             self._create_index_safe(conn, "idx_projects_ws", "projects", "workspace_id")
+        elif version == 7:
+            for col, dtype in [("avatar_seed", "TEXT DEFAULT ''"), ("bio", "TEXT DEFAULT ''"), ("email", "TEXT DEFAULT ''")]:
+                try:
+                    conn.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+                except sqlite3.OperationalError:
+                    pass  # 列已存在
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
