@@ -101,8 +101,10 @@ def build_index(user_id: str) -> int:
         return _build_index_locked(user_id)
 
 
-def _load_and_chunk_documents(user_id: str) -> list:
-    """遍历文档目录，加载并切分。损坏文件跳过并记录警告。"""
+def _load_and_chunk_documents(user_id: str) -> tuple[list, list[dict]]:
+    """遍历文档目录，加载并切分。损坏文件跳过并记录警告。
+    返回 (chunks, errors)，errors 格式 [{"file": fname, "error": str}]。
+    仅当全部文件失败时抛 RuntimeError。"""
     docs_dir, _ = _get_user_dirs(user_id)
 
     splitter = RecursiveCharacterTextSplitter(
@@ -135,7 +137,7 @@ def _load_and_chunk_documents(user_id: str) -> list:
     if not all_chunks and errors:
         raise RuntimeError(f"所有文件处理失败: {errors}")
 
-    return all_chunks
+    return all_chunks, errors
 
 
 def _build_index_locked(user_id: str) -> int:
