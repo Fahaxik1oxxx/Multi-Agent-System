@@ -55,8 +55,8 @@ async def chat_start(
         loop=asyncio.get_running_loop(),
         created_at=time.time(),
         user_id=user["user_id"],
+        db=request.app.state.db,
         session_id=db_session_id,
-        db=getattr(request.app.state, "db", None),
     )
     sessions[stream_id] = state
 

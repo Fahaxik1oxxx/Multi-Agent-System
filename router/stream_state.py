@@ -18,6 +18,9 @@ class SessionState:
     created_at: float
     user_id: str = ""
     db: Any = None
+    session_id: str = ""
+    total_tokens: int = 0
+    total_elapsed_ms: int = 0
 
 
 def push(state: SessionState, event: dict):
