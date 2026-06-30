@@ -466,6 +466,13 @@ body {
 }
 .markdown-body pre { margin: 0; }
 .markdown-body img { max-width: 100%; border-radius: 8px; }
+.markdown-body sup.citation {
+  color: #4f8cff;
+  font-size: 0.75em;
+  font-weight: 600;
+  cursor: default;
+  user-select: none;
+}
 
 /* ====== highlight.js GitHub Light 主题覆盖 ====== */
 .hljs {

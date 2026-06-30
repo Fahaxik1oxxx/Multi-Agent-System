@@ -13,7 +13,7 @@ import { OrchestrationPage } from '@/pages/project/OrchestrationPage';
 import { generateReportApi } from '@/api/client';
 import type { Session } from '@/types/api';
 import type { Project } from '@/types/workspace';
-import { Search, MessageSquare, Plus, ChevronLeft, ChevronRight, ChevronDown, Check, ArrowLeft } from 'lucide-react';
+import { Search, MessageSquare, Plus, ChevronLeft, ChevronRight, ChevronDown, Check, ArrowLeft, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 
 // ── Constants ──
@@ -26,16 +26,18 @@ const AGENT_META: Record<string, { icon: string; color: string }> = {
   Summarizer: { icon: '🧊', color: '#4f8cff' },
   Bot: { icon: '🤖', color: '#10b981' },
   Executor: { icon: '⚙️', color: '#8b5cf6' },
+  WebSearch: { icon: '🌐', color: '#10b981' },
 };
 
 const ICONS: Record<string, string> = {
   Planner: '🧋', Retriever: '🐍', Coder: '🫻', Writer: '✍️',
   Tester: '✅', Summarizer: '🧊', Bot: '🤖', Executor: '⚙️',
+  WebSearch: '🌐',
 };
 const COLORS: Record<string, string> = {
   Planner: '#4f8cff', Retriever: '#8b5cf6', Coder: '#10b981',
   Writer: '#f59e0b', Tester: '#ef4444', Summarizer: '#4f8cff',
-  Bot: '#10b981', Executor: '#8b5cf6',
+  Bot: '#10b981', Executor: '#8b5cf6', WebSearch: '#10b981',
 };
 
 interface ThinkingEntry { name: string; content: string; }
@@ -85,6 +87,7 @@ export function V3ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [laneMode, setLaneMode] = useState<LaneMode>('auto');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -356,11 +359,11 @@ export function V3ChatPage() {
     try {
       await startStream(finalText, laneMode, projectId, (reply, thinking) => {
         // onComplete callback
-      });
+      }, webSearchEnabled);
     } catch {
       // handled by streaming.error
     }
-  }, [inputValue, streaming.isStreaming, laneMode, projectId, attachedFiles, startStream]);
+  }, [inputValue, streaming.isStreaming, laneMode, projectId, attachedFiles, startStream, webSearchEnabled]);
   handleSendRef.current = handleSend;
 
   // 流式完成后保存会话 ID（快速对话持久化）
@@ -745,6 +748,11 @@ export function V3ChatPage() {
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                     </button>
                     <div className="w-px h-4 bg-[#e0e4e8]" />
+                    <span className={`text-xs px-2.5 py-1.5 rounded-full cursor-pointer select-none transition-colors flex items-center gap-1 ${webSearchEnabled ? 'bg-[#10b981] text-white' : 'bg-[#f0f4ff] text-[#81858c] hover:bg-[#e0e8ff]'}`}
+                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}>
+                      <Globe size={14} /> 联网搜索
+                    </span>
+                    <div className="w-px h-4 bg-[#e0e4e8]" />
                     {(['auto', 'fast', 'slow'] as const).map(m => (
                       <span key={m} className={`text-xs px-3 py-1.5 rounded-full cursor-pointer select-none transition-colors ${laneMode === m ? 'bg-[#4f8cff] text-white' : 'bg-[#f0f4ff] text-[#81858c] hover:bg-[#e0e8ff]'}`}
                         onClick={() => setLaneMode(m)}>
@@ -831,6 +839,11 @@ export function V3ChatPage() {
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full text-[#81858c] hover:bg-[#f0f4ff] hover:text-[#4f8cff] transition-colors" title="上传文件(PDF/TXT/PNG/JPG)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                     </button>
+                    <div className="w-px h-4 bg-[#e0e4e8]" />
+                    <span className={`text-xs px-2.5 py-1.5 rounded-full cursor-pointer select-none transition-colors flex items-center gap-1 ${webSearchEnabled ? 'bg-[#10b981] text-white' : 'bg-[#f0f4ff] text-[#81858c] hover:bg-[#e0e8ff]'}`}
+                      onClick={() => setWebSearchEnabled(!webSearchEnabled)}>
+                      <Globe size={14} /> 联网搜索
+                    </span>
                     <div className="w-px h-4 bg-[#e0e4e8]" />
                     {(['auto', 'fast', 'slow'] as const).map(m => (
                       <span key={m} className={`text-xs px-3 py-1.5 rounded-full cursor-pointer select-none transition-colors ${laneMode === m ? 'bg-[#4f8cff] text-white' : 'bg-[#f0f4ff] text-[#81858c] hover:bg-[#e0e8ff]'}`}

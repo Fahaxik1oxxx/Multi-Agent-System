@@ -32,7 +32,11 @@ export function Markdown({ text }: MarkdownProps) {
   const html = useMemo(() => {
     if (!text) return '';
     try {
-      const raw = marked.parse(text) as string;
+      const withCitations = text.replace(
+        /\[citation:(\d+)\]/g,
+        '<sup class="citation">[$1]</sup>'
+      );
+      const raw = marked.parse(withCitations) as string;
       // 为代码块添加复制按钮 + 正确闭合 code-block div
       return raw
         .replace(

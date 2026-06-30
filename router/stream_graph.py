@@ -7,6 +7,8 @@ import re
 import operator
 import sys
 import os
+import datetime
+from datetime import timedelta
 from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph, END
 
@@ -15,7 +17,7 @@ if _PROJECT_DIR not in sys.path:
     sys.path.insert(0, _PROJECT_DIR)
 
 from agents import create_llm, SYSTEM_PROMPTS
-from tools import search_knowledge
+from tools import search_knowledge, web_search
 from executor import CodeExecutor
 from router.stream_state import SessionState, push
 
@@ -38,6 +40,8 @@ class StreamWorkflowState(TypedDict):
     fix_count: int
     thinking: Annotated[list, operator.add]
     final_output: str
+    web_search_enabled: bool
+    web_search_results: str
 
 
 _MAX_FIX_CYCLES = 2
@@ -114,7 +118,19 @@ def _stream_llm(role: str, prompt: str, session: SessionState, temperature: floa
 def bot_node(state: StreamWorkflowState) -> dict:
     session = state["session"]
     logger.info("stream_graph | bot_node | enter | input=%s", state["user_input"][:60])
-    prompt = f"{get_prompt('Bot', state)}\n\n用户输入: {state['user_input']}"
+    prompt = f"{get_prompt('Bot', state)}\n\n"
+    if state.get("web_search_results"):
+        now = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
+        prompt += f"当前时间: {now}（北京时间）\n\n"
+        prompt += (
+            "以下为联网搜索结果（每个结果以 [webpage N] 标记）：\n"
+            f"{state['web_search_results']}\n\n"
+            "请严格遵循：\n"
+            "1. 仅基于以上搜索结果回答，不要编造搜索结果中不存在的细节。\n"
+            "2. 如果搜索结果中不包含用户所需信息，请如实告知「未搜索到相关信息」。\n"
+            "3. 在回答中使用 [citation:N] 标注信息来源编号。\n\n"
+        )
+    prompt += f"用户输入: {state['user_input']}"
     content = _stream_llm("Bot", prompt, session, temperature=0.5)
     logger.info("stream_graph | bot_node | exit | reply_chars=%d", len(content))
     return {"final_output": content, "thinking": [{"name": "Bot", "content": content}]}
@@ -129,7 +145,19 @@ def planner_node(state: StreamWorkflowState) -> dict:
     elif task_type == "编程":
         extra = "\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码阶段」这一步。"
     logger.info("stream_graph | planner_node | enter | task_type=%s", task_type)
-    prompt = f"{get_prompt('Planner', state)}\n{extra}\n\n用户需求: {state['user_input']}"
+    prompt = f"{get_prompt('Planner', state)}\n{extra}\n\n"
+    if state.get("web_search_results"):
+        now = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
+        prompt += f"当前时间: {now}（北京时间）\n\n"
+        prompt += (
+            "以下为联网搜索结果（每个结果以 [webpage N] 标记）：\n"
+            f"{state['web_search_results']}\n\n"
+            "请严格遵循：\n"
+            "1. 仅基于以上搜索结果进行规划，不要编造搜索结果中不存在的细节。\n"
+            "2. 如果搜索结果中不包含用户所需信息，请在计划中注明「未搜索到相关信息」。\n"
+            "3. 可使用 [citation:N] 标注信息来源编号。\n\n"
+        )
+    prompt += f"用户需求: {state['user_input']}"
     content = _stream_llm("Planner", prompt, session)
     logger.info("stream_graph | planner_node | exit | plan_chars=%d", len(content))
     return {"plan": content, "thinking": [{"name": "Planner", "content": content}]}
@@ -145,9 +173,11 @@ def retriever_node(state: StreamWorkflowState) -> dict:
         f"任务：{state['user_input']}\n"
         f"任务类型：{state.get('task_type', '')}\n"
         f"计划：{state.get('plan', '')}\n"
-        f"知识库检索结果：{kb_result}\n\n"
-        f"请总结与任务最相关的信息。"
+        f"知识库检索结果：{kb_result}\n"
     )
+    if state.get("web_search_results"):
+        prompt += f"联网搜索结果：{state['web_search_results']}\n"
+    prompt += "\n请总结与任务最相关的信息。"
     llm = create_llm("Retriever")
     content = ""
     for chunk in llm.stream(prompt):
@@ -189,6 +219,8 @@ def coder_node(state: StreamWorkflowState) -> dict:
         f"执行计划：{state.get('plan', '')}\n\n"
         f"知识库参考：{state.get('knowledge', '')}\n\n"
     )
+    if state.get("web_search_results"):
+        prompt += f"联网搜索结果：{state['web_search_results']}\n\n"
     if state.get("test_result") and "✅" in state.get("test_result", ""):
         prompt += f"上一次审阅反馈（请据此修改代码）：\n{state.get('test_result')}\n\n"
     if state.get("execution_result") and "exitcode:" in state.get("execution_result", ""):
@@ -211,6 +243,8 @@ def writer_node(state: StreamWorkflowState) -> dict:
         f"执行计划：{state.get('plan', '')}\n\n"
         f"参考资料：{state.get('knowledge', '')}\n\n"
     )
+    if state.get("web_search_results"):
+        prompt += f"联网搜索结果：{state['web_search_results']}\n\n"
     if state.get("test_result") and "✅" in state.get("test_result", ""):
         prompt += f"上一次审阅反馈（请据此修改文稿）：\n{state.get('test_result')}\n\n"
     prompt += "请撰写满足需求的文稿/报告。"
@@ -298,9 +332,85 @@ def summarizer_node(state: StreamWorkflowState) -> dict:
     return {"final_output": content, "thinking": [{"name": "Summarizer", "content": content}]}
 
 
+# —— 联网搜索节点 ——
+def web_search_node(state: StreamWorkflowState) -> dict:
+    enabled = state.get("web_search_enabled", False)
+    if not enabled:
+        return {"web_search_results": "", "thinking": []}
+
+    session = state["session"]
+    push(session, {"type": "agent_start", "name": "WebSearch"})
+
+    now = datetime.datetime.now()
+    query = state["user_input"]
+    augmented = (
+        query.replace("今天", now.strftime("%Y年%m月%d日"))
+        .replace("昨天", (now - timedelta(days=1)).strftime("%Y年%m月%d日"))
+        .replace("明天", (now + timedelta(days=1)).strftime("%Y年%m月%d日"))
+        .replace("现在", now.strftime("%Y年%m月%d日"))
+    )
+
+    # 用 LLM 提取搜索关键词
+    try:
+        llm = create_llm("Bot", temperature=0)
+        kw_prompt = (
+            "你是一个搜索引擎关键词提取器。将用户的问题转化为 2-4 个搜索引擎关键词，"
+            "用空格分隔。只输出关键词，不要任何其他文字。\n"
+            f"用户问题：{augmented}"
+        )
+        extracted = llm.invoke(kw_prompt).content.strip()
+        if 3 < len(extracted) < 100:
+            augmented = extracted
+    except Exception:
+        pass
+
+    date_str = now.strftime("%Y年%m月%d日")
+    month_str = now.strftime("%Y年%m月")
+
+    search_queries = [augmented]
+    if month_str not in augmented:
+        search_queries.append(f"{month_str} {query}")
+    if date_str not in augmented:
+        search_queries.append(f"{date_str} {query}")
+    search_queries = list(dict.fromkeys(search_queries))
+
+    seen_urls = set()
+    formatted = []
+    page_num = 0
+    for sq in search_queries[:3]:
+        raw = web_search.invoke(sq)
+        for line in raw.split("\n\n"):
+            line = line.strip()
+            if not line or not line[0].isdigit():
+                continue
+            parts = line.split("\n", 1)
+            if len(parts) < 2:
+                continue
+            url = parts[1].rsplit("\n", 1)[-1].strip() if "\n" in parts[1] else ""
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+            page_num += 1
+            formatted.append(f"[webpage {page_num}]\n{parts[1]}\n[/webpage {page_num}]")
+            if page_num >= 8:
+                break
+        if page_num >= 8:
+            break
+
+    results_text = "\n\n".join(formatted) if formatted else "未找到相关结果。"
+    push(session, {"type": "token", "name": "WebSearch", "content": results_text})
+    push(session, {"type": "agent_end", "name": "WebSearch", "content": results_text})
+    logger.info("stream_graph | web_search_node | queries=%s | pages=%d", search_queries, page_num)
+    return {
+        "web_search_results": results_text,
+        "thinking": [{"name": "WebSearch", "content": results_text}],
+    }
+
+
 # —— 构建 LangGraph ——
 def build_stream_workflow() -> StateGraph:
-    logger.info("stream_graph | build_static | 8 agent nodes, 6 conditional edges")
+    logger.info("stream_graph | build_static | 9 agent nodes, 7 conditional edges")
     wf = StateGraph(StreamWorkflowState)
     wf.add_node("bot", bot_node)
     wf.add_node("planner", planner_node)
@@ -310,7 +420,9 @@ def build_stream_workflow() -> StateGraph:
     wf.add_node("executor", executor_node)
     wf.add_node("tester", tester_node)
     wf.add_node("summarizer", summarizer_node)
-    wf.set_conditional_entry_point(_route_lane)
+    wf.add_node("web_search", web_search_node)
+    wf.add_edge("__start__", "web_search")
+    wf.add_conditional_edges("web_search", _route_lane)
     wf.add_edge("bot", END)
     wf.add_edge("planner", "retriever")
     wf.add_conditional_edges("retriever", _route_task)

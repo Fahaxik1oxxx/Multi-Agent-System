@@ -145,6 +145,8 @@ def run_workflow_streaming(data: dict, state: SessionState):
             fix_count=0,
             thinking=[],
             final_output="",
+            web_search_enabled=data.get("web_search_enabled", False),
+            web_search_results="",
         )
 
         result_state = graph.invoke(initial_state)

@@ -27,6 +27,7 @@ class ChatRequest(BaseModel):
     lane_mode: str = Field(default="auto")
     project_id: str | None = Field(default=None)
     history: list = Field(default_factory=list)
+    web_search_enabled: bool = Field(default=False)
 
 
 @router.post("/chat/start")
