@@ -120,16 +120,29 @@ export function KnowledgePage() {
           <p className="text-sm text-[#9ca3af] text-center py-8">暂无文件，上传一个吧</p>
         ) : (
           <div className="divide-y divide-[#f0f0f0]">
-            {files.map((f: any) => (
+            {files.map((f: any) => {
+              const indexed = f.indexed ?? (stats?.last_indexed && f.uploaded_at
+                ? new Date(f.uploaded_at) <= new Date(stats.last_indexed)
+                : undefined);
+              return (
               <div key={f.name} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
                 <FileIcon size={18} className="text-[#9ca3af] shrink-0" />
-                <span className="text-sm text-[#1d1d1f] flex-1 truncate">{f.name}</span>
+                <span className="text-sm text-[#1d1d1f] flex-1 truncate">
+                  {f.name}
+                  {indexed !== undefined && (
+                    indexed ? (
+                      <span className="badge badge-success badge-xs ml-2">已索引</span>
+                    ) : (
+                      <span className="badge badge-warning badge-xs ml-2">未索引</span>
+                    )
+                  )}
+                </span>
                 <span className="text-xs text-[#9ca3af]">{f.size ? `${(f.size / 1024).toFixed(1)}KB` : ''}</span>
                 <button className="btn btn-xs btn-ghost text-[#ef4444]" onClick={() => deleteMutation.mutate(f.name)}>
                   <Trash2 size={14} />
                 </button>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>
