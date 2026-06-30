@@ -989,7 +989,19 @@ export function V3ChatPage() {
               </div>
               <div className="p-3 rounded-xl bg-[#f9fafb]">
                 <div className="text-[9px] text-[#81858c]">操作</div>
-                <button onClick={() => knowledgeApi.rebuild().then(() => { toast.success('重建中'); refreshKnowledgeFiles(); }).catch(() => toast.error('重建失败'))}
+                <button onClick={() => knowledgeApi.rebuild().then((res: any) => {
+                  const errors = res.data?.errors;
+                  if (errors && errors.length > 0) {
+                    errors.forEach((e: { file: string; error: string }) =>
+                      toast.error(`${e.file}: ${e.error}`)
+                    );
+                  }
+                  toast.success('重建完成');
+                  refreshKnowledgeFiles();
+                }).catch((err: any) => {
+                  const detail = err?.response?.data?.detail;
+                  toast.error(detail ? `重建失败: ${detail}` : '重建失败');
+                })}
                   className="text-xs text-[#4f8cff] hover:underline">重建索引</button>
               </div>
             </div>
