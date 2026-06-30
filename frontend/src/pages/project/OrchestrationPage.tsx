@@ -159,7 +159,26 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
 
   const saveMutation = useMutation({
     mutationFn: async (p: PipelineConfig) => {
-      await projectsApi.updateAgentConfig(projectId, p);
+      // Build agent_states: all pipeline agents default "on", preserve existing "off"
+      const agentStates: Record<string, string> = {};
+      for (const node of p.nodes) {
+        if (node.type === 'agent' && node.data?.agent) {
+          agentStates[node.data.agent] = 'on';
+        }
+      }
+      // Preserve existing off states
+      if (initialData?.agent_states) {
+        for (const [k, v] of Object.entries(initialData.agent_states as Record<string, string>)) {
+          if (v === 'off' && agentStates[k]) {
+            agentStates[k] = 'off';
+          }
+        }
+      }
+
+      await projectsApi.updateAgentConfig(projectId, {
+        pipeline: p,
+        agent_states: agentStates,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-config', projectId] });

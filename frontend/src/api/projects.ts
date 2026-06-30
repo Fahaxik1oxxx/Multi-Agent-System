@@ -23,7 +23,11 @@ export const projectsApi = {
       return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { enabled_agents: data });
     }
     if (data && 'agent_states' in data) {
-      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { agent_states: data.agent_states });
+      const payload: any = { agent_states: data.agent_states };
+      if (data.pipeline) {
+        payload.pipeline = data.pipeline;
+      }
+      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
     }
     return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { pipeline: data });
   },
