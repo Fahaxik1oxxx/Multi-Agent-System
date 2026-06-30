@@ -29,8 +29,22 @@ export function KnowledgePage() {
 
   const rebuildMutation = useMutation({
     mutationFn: () => knowledgeApi.rebuild(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['kb-stats'] }); toast.success('索引已重建'); },
-    onError: () => toast.error('重建失败'),
+    onSuccess: (res: any) => {
+      qc.invalidateQueries({ queryKey: ['kb-stats'] });
+      const errors = res.data?.errors;
+      if (errors && errors.length > 0) {
+        errors.forEach((e: { file: string; error: string }) =>
+          toast.error(`${e.file}: ${e.error}`)
+        );
+        toast.warning(`索引部分完成，${errors.length} 个文件失败`);
+      } else {
+        toast.success('索引已重建');
+      }
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      toast.error(detail ? `重建失败: ${detail}` : '重建失败');
+    },
   });
 
   const handleUpload = async (file: File) => {
