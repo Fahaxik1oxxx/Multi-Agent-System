@@ -144,6 +144,7 @@ export function V3ChatPage() {
   const [orchestraOpen, setOrchestraOpen] = useState(false);
   const [currentThinking, setCurrentThinking] = useState<ThinkingEntry[]>([]);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
+  const [agentStates, setAgentStates] = useState<Record<string, string>>({});
   const [enabledAgents, setEnabledAgents] = useState<string[]>(Object.keys(AGENT_META));
   const [selectedThinkingAgent, setSelectedThinkingAgent] = useState<string | null>(null);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
@@ -163,7 +164,16 @@ export function V3ChatPage() {
     if (!projectId) return;
     projectsApi.getAgentConfig(projectId).then((res) => {
       const config = res.data;
-      if (config?.enabled_agents?.length) setEnabledAgents(config.enabled_agents);
+      if (config?.agent_states) {
+        setAgentStates(config.agent_states);
+        setEnabledAgents(Object.keys(config.agent_states).filter(k => config.agent_states[k] === 'on'));
+      } else if (config?.enabled_agents?.length) {
+        // backward compat: agent_states from old enabled_agents format
+        const states: Record<string, string> = {};
+        config.enabled_agents.forEach((k: string) => { states[k] = 'on'; });
+        setAgentStates(states);
+        setEnabledAgents(config.enabled_agents);
+      }
     }).catch(() => {});
   }, [projectId]);
 
@@ -350,11 +360,11 @@ export function V3ChatPage() {
     try {
       await startStream(finalText, laneMode, projectId, (reply, thinking) => {
         // onComplete callback
-      }, webSearchEnabled);
+      }, webSearchEnabled, agentStates);
     } catch {
       // handled by streaming.error
     }
-  }, [inputValue, streaming.isStreaming, laneMode, projectId, attachedFiles, startStream]);
+  }, [inputValue, streaming.isStreaming, laneMode, projectId, attachedFiles, startStream, webSearchEnabled, agentStates]);
   handleSendRef.current = handleSend;
 
   // 流式完成后保存会话 ID（快速对话持久化）
@@ -520,8 +530,8 @@ export function V3ChatPage() {
     const kept = messages.slice(0, lastAssistantIdx);
     setMessages([...kept, precedingUser, { role: 'assistant', content: '', loading: true }]);
     setInputValue('');
-    startStream(precedingUser.content, laneMode, projectId, undefined, webSearchEnabled).catch(() => {});
-  }, [messages, streaming.isStreaming, laneMode, startStream]);
+    startStream(precedingUser.content, laneMode, projectId, undefined, webSearchEnabled, agentStates).catch(() => {});
+  }, [messages, streaming.isStreaming, laneMode, startStream, webSearchEnabled, agentStates]);
 
   // ── 报告 ──
   const handleGenerateReport = useCallback(async (thinking?: ThinkingEntry[]) => {
@@ -551,8 +561,8 @@ export function V3ChatPage() {
     const userMsg: Message = { role: 'user', content: editValue.trim() };
     setMessages([...kept, userMsg, { role: 'assistant', content: '', loading: true }]);
     setEditingIdx(null); setEditValue(''); setInputValue('');
-    startStream(editValue.trim(), laneMode, projectId, undefined, webSearchEnabled).catch(() => {});
-  }, [editValue, editingIdx, messages, streaming.isStreaming, laneMode, startStream]);
+    startStream(editValue.trim(), laneMode, projectId, undefined, webSearchEnabled, agentStates).catch(() => {});
+  }, [editValue, editingIdx, messages, streaming.isStreaming, laneMode, startStream, webSearchEnabled, agentStates]);
 
   // ── 文件上传 ──
   const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -897,7 +907,7 @@ export function V3ChatPage() {
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#4f8cff]/10 to-[#6c5ce7]/10 flex items-center justify-center text-sm">🤖</div>
               <div className="flex-1 text-left">
                 <div className="text-xs font-medium text-[#1d1d1f]">Agent 池</div>
-                <div className="text-[10px] text-[#9ca3af]">{enabledAgents.length}/{Object.keys(AGENT_META).length} 已启用</div>
+                <div className="text-[10px] text-[#9ca3af]">{Object.values(agentStates).filter(v => v === 'on').length}/{Object.values(agentStates).filter(v => v !== undefined).length} 已启用</div>
               </div>
               <ChevronDown size={14} className={`text-[#9ca3af] transition-transform ${agentPoolOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -906,21 +916,33 @@ export function V3ChatPage() {
               <div className="absolute bottom-full left-0 right-0 mb-1.5 p-2 bg-white rounded-xl shadow-lg border border-[#eceef2] z-30 max-h-60 overflow-y-auto">
                 <div className="grid grid-cols-4 gap-1">
                   {Object.entries(AGENT_META).map(([name, meta]) => {
-                    const isOn = enabledAgents.includes(name);
+                    const st = agentStates[name]; // "on" | "off" | undefined
+                    const isOn = st === 'on';
+                    const isOff = st === 'off';
+                    const isDisabled = st === undefined;
                     return (
-                      <button key={name} onClick={(e) => { e.stopPropagation(); setEnabledAgents(prev => {
-                        const next = prev.includes(name) ? prev.filter(k => k !== name) : [...prev, name];
-                        if (projectId) projectsApi.updateAgentConfig(projectId, next).catch(() => {});
-                        return next;
-                      });}}
+                      <button key={name}
+                        onClick={isDisabled ? undefined : (e) => {
+                          e.stopPropagation();
+                          setAgentStates(prev => {
+                            const next = { ...prev };
+                            next[name] = prev[name] === 'on' ? 'off' : 'on';
+                            if (projectId) projectsApi.updateAgentConfig(projectId, { agent_states: next }).catch(() => {});
+                            return next;
+                          });
+                        }}
                         className={`flex flex-col items-center py-1.5 rounded-lg text-[10px] transition-all ${
                           isOn
                             ? 'bg-white border border-[#e0e4e8] text-[#1d1d1f] shadow-sm'
-                            : 'bg-gray-50 text-[#b0b8c1] border border-transparent'
+                            : isOff
+                            ? 'bg-amber-50 border border-amber-200 text-[#92400e]'
+                            : 'bg-gray-50 text-[#b0b8c1] grayscale opacity-40 border border-transparent cursor-not-allowed'
                         }`}
-                        title={name}>
-                        <span className={`text-base leading-none mb-0.5 ${isOn ? '' : 'grayscale opacity-40'}`}>{meta.icon}</span>
+                        title={isDisabled ? '不在编排中' : isOff ? '已关闭，点击开启' : '已开启，点击关闭'}>
+                        <span className={`text-base leading-none mb-0.5 ${isOff || isDisabled ? 'grayscale opacity-40' : ''}`}>{meta.icon}</span>
                         <span className="leading-tight">{name}</span>
+                        {isOff && <span className="text-[8px] text-amber-500 mt-0.5">已关闭</span>}
+                        {isDisabled && <span className="text-[8px] text-[#b0b8c1] mt-0.5">未编排</span>}
                       </button>
                     );
                   })}
@@ -935,7 +957,7 @@ export function V3ChatPage() {
           {/* ─── 统计 ─── */}
           <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-[#9ca3af] border-t border-[#f0f2f5]">
             <span>💬 {messages.length} 条消息</span>
-            <span>🧠 {enabledAgents.length}/{Object.keys(AGENT_META).length} Agent</span>
+            <span>🧠 {Object.values(agentStates).filter(v => v === 'on').length}/{Object.values(agentStates).filter(v => v !== undefined).length} Agent</span>
           </div>
 
           {/* ─── 操作按钮 ─── */}

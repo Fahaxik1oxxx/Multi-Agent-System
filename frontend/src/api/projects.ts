@@ -18,6 +18,13 @@ export const projectsApi = {
   getAgentConfig: (projectId: string) =>
     apiClient.get<{ pipeline: any; enabled_agents: string[]; disabled_agents: string[] }>(`/projects/${projectId}/agent-config`),
 
-  updateAgentConfig: (projectId: string, data: any) =>
-    apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, Array.isArray(data) ? { enabled_agents: data } : { pipeline: data }),
+  updateAgentConfig: (projectId: string, data: any) => {
+    if (Array.isArray(data)) {
+      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { enabled_agents: data });
+    }
+    if (data && 'agent_states' in data) {
+      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { agent_states: data.agent_states });
+    }
+    return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { pipeline: data });
+  },
 };
