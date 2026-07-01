@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { workspacesApi } from '@/api/workspaces';
-import { projectsApi } from '@/api/projects';
-import { TEMPLATES, type Template } from '@/data/templates';
+import { projectsApi, marketApi } from '@/api/projects';
+import type { Template } from '@/data/templates';
 import { DEFAULT_PIPELINE } from '@/pages/project/OrchestrationPage';
 import { toast } from 'sonner';
 
@@ -13,6 +13,21 @@ export function TemplateMarket() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [projectName, setProjectName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const { data: templates, isLoading } = useQuery({
+    queryKey: ['market-templates'],
+    queryFn: async () => {
+      const res = await marketApi.list();
+      return res.data;
+    },
+  });
+
+  const handleCopy = async (id: string) => {
+    try {
+      await marketApi.copy(id);
+      toast.success('已复制到我的配置');
+    } catch { toast.error('复制失败'); }
+  };
 
   // 获取或自动创建工作空间
   const createWsMutation = useMutation({
@@ -78,8 +93,14 @@ export function TemplateMarket() {
         <p className="text-[#81858c] text-sm mt-1">浏览预置场景模板，一键创建项目</p>
       </div>
 
+      {isLoading && (
+        <div className="flex justify-center py-12">
+          <span className="loading loading-spinner loading-lg text-[#4f8cff]" />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {TEMPLATES.map((template) => (
+        {(templates || []).map((template) => (
           <button
             key={template.id}
             className="card bg-base-100 border border-[#e0e4e8] shadow-sm hover:border-[#4f8cff] hover:shadow-md transition-all text-left cursor-pointer"
@@ -94,6 +115,14 @@ export function TemplateMarket() {
                 {template.agentConfig.map((agent) => (
                   <span key={agent} className="badge bg-[#4f8cff]/8 text-[#4f8cff] border-0 text-xs">{agent}</span>
                 ))}
+              </div>
+              <div className="mt-3 pt-3 border-t border-[#e0e4e8]">
+                <span
+                  className="btn btn-xs btn-ghost text-[#4f8cff]"
+                  onClick={(e) => { e.stopPropagation(); handleCopy(template.id); }}
+                >
+                  复制
+                </span>
               </div>
             </div>
           </button>
