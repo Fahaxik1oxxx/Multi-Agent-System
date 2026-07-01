@@ -30,6 +30,7 @@ export function TeamChat() {
   const [showTodoInput, setShowTodoInput] = useState(false);
   const [todoInputVal, setTodoInputVal] = useState('');
   const [todoAssignee, setTodoAssignee] = useState<string>('');
+  const pendingRef = useRef(new Set<string>());
 
   const { data: channels = [] } = useQuery({
     queryKey: ['channels', orgId],
@@ -135,17 +136,13 @@ export function TeamChat() {
                   const event = JSON.parse(dataLine.slice(6));
                   if (event.type === 'message' && event.message) {
                     const msg = event.message;
+                    // 自己的消息由 onMutate 处理，SSE 不理（已有乐观消息）
+                    if (msg._clientId && pendingRef.current.has(msg._clientId)) {
+                      pendingRef.current.delete(msg._clientId);
+                      continue;
+                    }
                     setMessages((prev) => {
-                      // 用 _clientId 精确去重（如果有）
-                      if (msg._clientId) {
-                        const existing = prev.findIndex(m => m._clientId === msg._clientId);
-                        if (existing >= 0) {
-                          const next = [...prev];
-                          next[existing] = msg;
-                          return next;
-                        }
-                      }
-                      // 没有 _clientId 或未匹配到：用消息 ID 去重
+                      // 用消息 ID 去重
                       return prev.some(m => m.id === msg.id) ? prev : [...prev, msg];
                     });
                     // 别人发的消息且不在底部时，累计未读提示
@@ -204,6 +201,7 @@ export function TeamChat() {
       await apiClient.post(`/orgs/${orgId}/channels/${activeChannel}/messages`, payload);
     },
     onMutate: (payload: { content: string; _clientId: string }) => {
+      pendingRef.current.add(payload._clientId);
       // 乐观更新：立即显示消息 + 清空输入框
       const optimisticMsg = {
         id: `opt-${payload._clientId}`,
@@ -217,13 +215,17 @@ export function TeamChat() {
       };
       setMessages((prev) => [...prev, optimisticMsg]);
       setInput('');
-      // 自己发送的消息，强制滚到底部
       setNewMsgCount(0);
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
     },
+    onSuccess: (res: any) => {
+      // 只移除 pending 标记，SSE 已忽略这条消息，不需要再改 state
+      if (pendingRef.current.size > 0) pendingRef.current.clear();
+    },
     onError: (err: any) => {
+      pendingRef.current.clear();
       toast.error(err?.response?.data?.error || '发送失败');
     },
   });
