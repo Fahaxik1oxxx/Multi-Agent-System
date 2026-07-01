@@ -136,14 +136,16 @@ export function TeamChat() {
                   if (event.type === 'message' && event.message) {
                     const msg = event.message;
                     setMessages((prev) => {
-                      // 如果有同内容的乐观消息，替换为真实消息
-                      const optIdx = prev.findIndex(m => m.id?.startsWith('opt-') && m.content === msg.content && m.user_id === msg.user_id);
-                      if (optIdx >= 0) {
-                        const next = [...prev];
-                        next[optIdx] = msg;
-                        return next;
+                      // 用 _clientId 精确去重（如果有）
+                      if (msg._clientId) {
+                        const existing = prev.findIndex(m => m._clientId === msg._clientId);
+                        if (existing >= 0) {
+                          const next = [...prev];
+                          next[existing] = msg;
+                          return next;
+                        }
                       }
-                      // 否则去重追加
+                      // 没有 _clientId 或未匹配到：用消息 ID 去重
                       return prev.some(m => m.id === msg.id) ? prev : [...prev, msg];
                     });
                     // 别人发的消息且不在底部时，累计未读提示
@@ -198,15 +200,16 @@ export function TeamChat() {
   }, [messages.length]);
 
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
-      await apiClient.post(`/orgs/${orgId}/channels/${activeChannel}/messages`, { content });
+    mutationFn: async (payload: { content: string; _clientId: string }) => {
+      await apiClient.post(`/orgs/${orgId}/channels/${activeChannel}/messages`, payload);
     },
-    onMutate: (content: string) => {
+    onMutate: (payload: { content: string; _clientId: string }) => {
       // 乐观更新：立即显示消息 + 清空输入框
       const optimisticMsg = {
-        id: `opt-${Date.now()}`,
+        id: `opt-${payload._clientId}`,
+        _clientId: payload._clientId,
         channel_id: activeChannel,
-        content: content,
+        content: payload.content,
         user_id: currentUser?.user_id || 'unknown',
         user_name: currentUser?.user_name || '我',
         is_agent: 0,
@@ -225,9 +228,11 @@ export function TeamChat() {
     },
   });
 
+  let clientIdCounter = 0;
   const handleSend = () => {
     if (!input.trim() || !activeChannel || sendMutation.isPending) return;
-    sendMutation.mutate(input.trim());
+    const _clientId = `c${Date.now()}-${++clientIdCounter}`;
+    sendMutation.mutate({ content: input.trim(), _clientId });
   };
 
   const channelMutation = useMutation({

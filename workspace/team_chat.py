@@ -121,9 +121,12 @@ async def send_message(request: Request, org_id: str, channel_id: str, user: dic
 
     mid = db.create_message(channel_id, user["user_id"], content)
     user_name = db.get_user_name(user["user_id"])
+    _client_id = data.get("_clientId", "")
 
-    # 立即广播用户消息
+    # 立即广播用户消息（含客户端ID用于去重）
     msg = {"id": mid, "channel_id": channel_id, "content": content, "user_id": user["user_id"], "user_name": user_name, "is_agent": 0}
+    if _client_id:
+        msg["_clientId"] = _client_id
     await _broadcast(org_id, {"type": "message", "message": msg})
 
     # 后台处理 @agent 命令（不阻塞返回）
