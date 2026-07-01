@@ -55,7 +55,7 @@ export function TemplateMarket() {
       // 2. Create project
       const projectRes = await projectsApi.create(wsId, {
         name: projectName.trim(),
-        description: selectedTemplate.description,
+        description: selectedTemplate.description || `基于模板「${selectedTemplate.name}」创建`,
       });
       const projectId = projectRes.data.id;
 
@@ -63,7 +63,7 @@ export function TemplateMarket() {
       const newPipeline = {
         nodes: DEFAULT_PIPELINE.nodes.filter(n => {
           if (n.type === 'agent' && n.data.agent) {
-            return selectedTemplate.agentConfig.includes(n.data.agent);
+            return selectedTemplate.agents.includes(n.data.agent);
           }
           return true;
         }),
@@ -108,11 +108,11 @@ export function TemplateMarket() {
             onClick={() => openDialog(template)}
           >
             <div className="card-body p-5">
-              <div className="text-3xl mb-2">{template.icon}</div>
+              <div className="text-3xl mb-2">{template.icon || '🧩'}</div>
               <h3 className="card-title text-[#1d1d1f] text-base">{template.name}</h3>
-              <p className="text-sm text-[#81858c]">{template.description}</p>
+              <p className="text-sm text-[#81858c]">{template.description || template.author_name || '社区模板'}</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                {template.agentConfig.map((agent) => (
+                {template.agents.map((agent) => (
                   <span key={agent} className="badge bg-[#4f8cff]/8 text-[#4f8cff] border-0 text-xs">{agent}</span>
                 ))}
               </div>
@@ -142,10 +142,10 @@ export function TemplateMarket() {
           <div className="p-5 space-y-4">
             {selectedTemplate && (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-[#f3f4f6]">
-                <span className="text-2xl">{selectedTemplate.icon}</span>
+                <span className="text-2xl">{selectedTemplate.icon || '🧩'}</span>
                 <div>
                   <div className="text-sm font-medium text-[#1d1d1f]">{selectedTemplate.name}</div>
-                  <div className="text-xs text-[#81858c]">{selectedTemplate.description}</div>
+                  <div className="text-xs text-[#81858c]">{selectedTemplate.description || selectedTemplate.author_name || '社区模板'}</div>
                 </div>
               </div>
             )}

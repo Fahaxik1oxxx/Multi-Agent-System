@@ -137,10 +137,13 @@ export function V3AgentSelectPage() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
 
-  const handleUseConfig = async (config: { name: string; agents: string[] }) => {
+  const handleUseConfig = async (config: { id: string; name: string; agents: string[]; pipeline?: any }) => {
     if (!projectId) return;
     try {
-      await projectsApi.updateAgentConfig(projectId, config.agents);
+      await projectsApi.updateAgentConfig(projectId, {
+        enabled_agents: config.agents,
+        pipeline: config.pipeline || undefined,
+      });
       navigate(`/v3/personal/${projectId}/chat`, { replace: true });
     } catch { toast.error('应用配置失败'); }
   };

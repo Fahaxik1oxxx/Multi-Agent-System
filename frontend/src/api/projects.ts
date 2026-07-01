@@ -29,6 +29,13 @@ export const projectsApi = {
       }
       return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
     }
+    if (data && 'enabled_agents' in data) {
+      const payload: any = { enabled_agents: data.enabled_agents };
+      if (data.pipeline) {
+        payload.pipeline = data.pipeline;
+      }
+      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
+    }
     return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { pipeline: data });
   },
 };
