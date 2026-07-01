@@ -42,8 +42,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -83,11 +82,30 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="多智能体协作系统", version="3.6", lifespan=lifespan)
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:5175").split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ──── 静态文件 ────
-app.mount("/coding", StaticFiles(directory=os.path.join(PROJECT_DIR, "coding")), name="coding")
+# ──── 静态文件（coding 需认证） ────
+@app.get("/api/coding/{file_path:path}")
+async def serve_coding_file(file_path: str, request: Request):
+    from user.helpers import require_auth
+    user = await require_auth(request)
+    full = os.path.normpath(os.path.join(PROJECT_DIR, "coding", file_path))
+    if not full.startswith(os.path.normpath(os.path.join(PROJECT_DIR, "coding"))):
+        return JSONResponse({"error": "路径非法"}, status_code=403)
+    if not os.path.isfile(full):
+        return JSONResponse({"error": "文件不存在"}, status_code=404)
+    return FileResponse(full)
 
 # ──── 路由 ────
 from app.knowledge import router as knowledge_router

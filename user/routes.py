@@ -30,12 +30,17 @@ async def register(request: Request):
     if not name or not password:
         return JSONResponse({"error": "用户名和密码不能为空"}, status_code=400)
 
+    if len(password) < 6:
+        return JSONResponse({"error": "密码至少需要 6 位"}, status_code=400)
+
     db = _get_db(request)
     if db.get_user(name):
         return JSONResponse({"error": f"用户名已存在: {name}"}, status_code=409)
 
     hashed = hash_password(password)
     uid = db.insert_user(name, hashed)
+    ip = request.client.host if request.client else ""
+    db.create_audit_log("register", user_id=uid, ip=ip)
     token = create_jwt(uid, name, is_admin=False)
     return JSONResponse({"token": token, "user_id": uid, "name": name})
 
@@ -50,9 +55,21 @@ async def login(request: Request):
     if not name or not password:
         return JSONResponse({"error": "用户名和密码不能为空"}, status_code=400)
 
+    ip = request.client.host if request.client else ""
+
     db = _get_db(request)
     user = db.get_user(name)
+
+    # 账号锁定检查
+    if user and db.count_recent_audit("login_failed", user_id=user["id"], minutes=15) >= 5:
+        return JSONResponse({"error": "账号已被临时锁定，请 15 分钟后重试"}, status_code=429)
+
+    # IP 锁定检查
+    if db.count_recent_audit("login_failed", ip=ip, minutes=30) >= 10:
+        return JSONResponse({"error": "IP 已被临时锁定，请 30 分钟后重试"}, status_code=429)
+
     if not user or not verify_password(password, user["password"]):
+        db.create_audit_log("login_failed", user_id=user["id"] if user else "", detail={"name": name}, ip=ip)
         return JSONResponse({"error": "用户名或密码错误"}, status_code=401)
 
     token = create_jwt(user["id"], user["name"], is_admin=bool(user.get("is_admin", 0)))
