@@ -136,14 +136,18 @@ export function TeamChat() {
                   if (event.type === 'message' && event.message) {
                     const msg = event.message;
                     setMessages((prev) => {
-                      // 如果有同内容的乐观消息，替换为真实消息
-                      const optIdx = prev.findIndex(m => m.id?.startsWith('opt-') && m.content === msg.content && m.user_id === msg.user_id);
-                      if (optIdx >= 0) {
-                        const next = [...prev];
-                        next[optIdx] = msg;
-                        return next;
+                      // 自己的消息：SSE 只替换乐观消息，不追加（防止竞态导致左右重复）
+                      if (msg.user_id === currentUser?.user_id) {
+                        const optIdx = prev.findIndex(m => m.id?.startsWith('opt-'));
+                        if (optIdx >= 0) {
+                          const next = [...prev];
+                          next[optIdx] = msg;
+                          return next;
+                        }
+                        // 没有乐观消息说明已处理过，忽略
+                        return prev;
                       }
-                      // 否则去重追加
+                      // 别人的消息：去重追加
                       return prev.some(m => m.id === msg.id) ? prev : [...prev, msg];
                     });
                     // 别人发的消息且不在底部时，累计未读提示
@@ -224,6 +228,12 @@ export function TeamChat() {
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
+    },
+    onSuccess: (data: any) => {
+      // SSE 没来得及替换乐观消息时，用真实 ID 确认
+      setMessages((prev) => prev.map(m =>
+        m.id?.startsWith('opt-') ? { ...m, id: data.id } : m
+      ));
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || '发送失败');
