@@ -8,6 +8,7 @@ export interface UserProfile {
   avatar_seed: string;
   bio: string;
   email: string;
+  goal: string;
 }
 
 export const userApi = {
@@ -20,6 +21,7 @@ export const userApi = {
     bio?: string;
     email?: string;
     avatar_seed?: string;
+    goal?: string;
   }) =>
     apiClient.put('/user/profile', data),
 

@@ -280,6 +280,7 @@ async def get_profile(request: Request, user: dict = Depends(require_auth)):
             "avatar_seed": u.get("avatar_seed", "") or user["user_id"],
             "bio": u.get("bio", ""),
             "email": u.get("email", ""),
+            "goal": u.get("goal", ""),
         }
     )
 
@@ -313,6 +314,8 @@ async def update_profile(request: Request, user: dict = Depends(require_auth)):
     if bio: fields["bio"] = bio
     if email: fields["email"] = email
     if avatar_seed: fields["avatar_seed"] = avatar_seed
+    if "goal" in data:
+        fields["goal"] = data["goal"]
     if fields:
         db.update_user_fields(user["user_id"], fields)
 
