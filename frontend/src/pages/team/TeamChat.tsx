@@ -245,6 +245,11 @@ export function TeamChat() {
         };
         return [...prev, optimisticMsg];
       });
+      // 30 秒后自动清除未被替换的乐观消息（兜底安全网）
+      setTimeout(() => {
+        pendingOptRef.current.delete(optId);
+        setMessages(prev => prev.filter(m => m.id !== optId));
+      }, 30000);
       setInput('');
       // 自己发送的消息，强制滚到底部
       setNewMsgCount(0);
