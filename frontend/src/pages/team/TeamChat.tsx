@@ -191,15 +191,10 @@ export function TeamChat() {
     return () => el.removeEventListener('scroll', handler);
   }, []);
 
-  // 监听消息变化：自动滚底或累计未读提示
+  // 监听消息变化：自动滚底
   useEffect(() => {
-    const el = msgContainerRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (nearBottom) {
-      scrollToBottom(false);
-      setNewMsgCount(0);
-    }
+    scrollToBottom(false);
+    setNewMsgCount(0);
   }, [messages.length]);
 
   const sendMutation = useMutation({
