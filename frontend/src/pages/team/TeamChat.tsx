@@ -229,10 +229,12 @@ export function TeamChat() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
     },
-    onSuccess: (data: any) => {
+    onSuccess: (res: any) => {
       // SSE 没来得及替换乐观消息时，用真实 ID 确认
+      const realId = res?.data?.id || res?.id;
+      if (!realId) return;
       setMessages((prev) => prev.map(m =>
-        m.id?.startsWith('opt-') ? { ...m, id: data.id } : m
+        m.id?.startsWith('opt-') ? { ...m, id: realId } : m
       ));
     },
     onError: (err: any) => {
