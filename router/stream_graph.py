@@ -64,8 +64,24 @@ def get_prompt(role: str, state: StreamWorkflowState) -> str:
 
 # —— LangGraph 节点与路由 ——
 def _route_lane(state: StreamWorkflowState) -> str:
-    chosen = "bot" if state.get("complexity") == "低" else "planner"
-    logger.info("stream_graph | route_lane | complexity=%s -> %s", state.get("complexity"), chosen)
+    complexity = state.get("complexity", "低")
+    task_type = state.get("task_type", "闲聊")
+    session = state.get("session")
+    
+    confidence = 1.0
+    if session and hasattr(session, 'prev_classification') and session.prev_classification:
+        confidence = session.prev_classification.get("final_confidence", 1.0)
+        
+    if confidence < 0.5:
+        logger.info("stream_graph | route_lane | low confidence %.2f -> bot", confidence)
+        return "bot"
+        
+    if task_type == "闲聊":
+        logger.info("stream_graph | route_lane | type is 闲聊 -> bot")
+        return "bot"
+        
+    chosen = "bot" if complexity == "低" else "planner"
+    logger.info("stream_graph | route_lane | complexity=%s task_type=%s confidence=%.2f -> %s", complexity, task_type, confidence, chosen)
     return chosen
 
 
