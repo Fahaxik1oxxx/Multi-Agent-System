@@ -86,7 +86,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:5175").split(","),
+    allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174,http://localhost:5175").split(",")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -101,7 +101,8 @@ async def serve_coding_file(file_path: str, request: Request):
     from user.helpers import require_auth
     user = await require_auth(request)
     full = os.path.normpath(os.path.join(PROJECT_DIR, "coding", file_path))
-    if not full.startswith(os.path.normpath(os.path.join(PROJECT_DIR, "coding"))):
+    coding_root = os.path.normpath(os.path.join(PROJECT_DIR, "coding"))
+    if not (full == coding_root or full.startswith(coding_root + os.sep)):
         return JSONResponse({"error": "路径非法"}, status_code=403)
     if not os.path.isfile(full):
         return JSONResponse({"error": "文件不存在"}, status_code=404)
