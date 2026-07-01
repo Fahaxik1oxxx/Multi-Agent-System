@@ -1,14 +1,18 @@
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workspacesApi } from '@/api/workspaces';
-import { projectsApi, marketApi } from '@/api/projects';
+import { projectsApi, marketApi, configsApi } from '@/api/projects';
 import { type Template, TEMPLATES } from '@/data/templates';
 import { DEFAULT_PIPELINE } from '@/pages/project/OrchestrationPage';
+import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
+import { Trash2 } from 'lucide-react';
 
 export function TemplateMarket() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [projectName, setProjectName] = useState('');
@@ -34,6 +38,15 @@ export function TemplateMarket() {
       await marketApi.copy(id);
       toast.success('已复制到我的配置');
     } catch { toast.error('复制失败'); }
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`确定删除模板「${name}」？此操作不可恢复。`)) return;
+    try {
+      await configsApi.delete(id);
+      qc.invalidateQueries({ queryKey: ['market-templates'] });
+      toast.success('已删除');
+    } catch { toast.error('删除失败'); }
   };
 
   // 获取或自动创建工作空间
@@ -125,13 +138,21 @@ export function TemplateMarket() {
                   <span key={agent} className="badge bg-[#4f8cff]/8 text-[#4f8cff] border-0 text-xs">{agent}</span>
                 ))}
               </div>
-              <div className="mt-3 pt-3 border-t border-[#e0e4e8]">
+              <div className="mt-3 pt-3 border-t border-[#e0e4e8] flex items-center gap-2">
                 <span
                   className="btn btn-xs btn-ghost text-[#4f8cff]"
                   onClick={(e) => { e.stopPropagation(); handleCopy(template.id); }}
                 >
                   复制
                 </span>
+                {template.user_id && currentUser?.user_id === template.user_id && (
+                  <span
+                    className="btn btn-xs btn-ghost text-[#ef4444]"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(template.id, template.name); }}
+                  >
+                    <Trash2 size={12} />
+                  </span>
+                )}
               </div>
             </div>
           </button>

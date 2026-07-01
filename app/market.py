@@ -31,6 +31,7 @@ async def list_market(
             "agents": cfg.get("agents", []),
             "project_id": cfg.get("project_id"),
             "pipeline": cfg.get("pipeline", {}),
+            "user_id": cfg.get("user_id", ""),
             "author_name": db.get_user_name(cfg.get("user_id", "")),
             "created_at": cfg.get("created_at"),
             "updated_at": cfg.get("updated_at"),
