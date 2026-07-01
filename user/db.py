@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 9
+    TARGET_SCHEMA_VERSION = 10
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
@@ -27,6 +27,9 @@ class Database:
     # 5 → 新增: organizations, org_members, org_channels, org_messages, org_todos
     # 6 → 新增: 10 个关键索引
     # 7 → 新增: users 表 avatar_seed, bio, email 列
+    # 8 → 新增: step_logs + 索引
+    # 9 → 新增: org_files
+    # 10 → 新增: saved_configs, audit_logs + users.goal 列
 
     def __init__(self, db_path: str):
         self._path = db_path
@@ -283,6 +286,43 @@ class Database:
                     FOREIGN KEY (uploaded_by) REFERENCES users(id)
                 );
             """)
+        elif version == 10:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS saved_configs (
+                    id           TEXT PRIMARY KEY,
+                    user_id      TEXT NOT NULL,
+                    project_id   TEXT,
+                    name         TEXT NOT NULL,
+                    agents       TEXT NOT NULL DEFAULT '[]',
+                    pipeline     TEXT DEFAULT '{}',
+                    prompts      TEXT DEFAULT '{}',
+                    is_public    INTEGER DEFAULT 0,
+                    github_url   TEXT DEFAULT '',
+                    created_at   TEXT DEFAULT (datetime('now', 'localtime')),
+                    updated_at   TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_sc_user ON saved_configs(user_id);
+                CREATE INDEX IF NOT EXISTS idx_sc_project ON saved_configs(project_id);
+                CREATE INDEX IF NOT EXISTS idx_sc_public ON saved_configs(is_public, created_at);
+
+                CREATE TABLE IF NOT EXISTS audit_logs (
+                    id           TEXT PRIMARY KEY,
+                    user_id      TEXT,
+                    action       TEXT NOT NULL,
+                    detail       TEXT DEFAULT '{}',
+                    ip           TEXT DEFAULT '',
+                    created_at   TEXT DEFAULT (datetime('now', 'localtime'))
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id, created_at);
+                CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action, created_at);
+                CREATE INDEX IF NOT EXISTS idx_audit_ip ON audit_logs(ip, created_at);
+            """)
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN goal TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass
         else:
             raise ValueError(f"未知的迁移版本: {version}")
 
