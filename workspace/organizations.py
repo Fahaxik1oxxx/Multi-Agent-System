@@ -75,7 +75,7 @@ async def delete_org(request: Request, org_id: str, user: dict = Depends(require
 async def invite_member(request: Request, org_id: str, user: dict = Depends(require_auth)):
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
-    if role != "owner" and not db.is_admin(user["user_id"]):
+    if role not in ("owner", "member") and not db.is_admin(user["user_id"]):
         return JSONResponse({"error": "无权邀请"}, status_code=403)
     data = await request.json()
     user_name = (data.get("user_name") or "").strip()
@@ -113,3 +113,16 @@ async def join_by_code(request: Request, user: dict = Depends(require_auth)):
     if not db.join_organization(org["id"], user["user_id"]):
         return JSONResponse({"error": "你已在该组织中"}, status_code=409)
     return JSONResponse({"id": org["id"], "name": org["name"], "status": "ok"})
+
+
+@org_router.post("/{org_id}/leave")
+async def leave_org(request: Request, org_id: str, user: dict = Depends(require_auth)):
+    """当前用户退出组织（Owner 不可退出，请先转让或删除组织）"""
+    db = _get_db(request)
+    role = db.get_org_member_role(org_id, user["user_id"])
+    if role is None:
+        return JSONResponse({"error": "你不在该组织中"}, status_code=404)
+    if role == "owner":
+        return JSONResponse({"error": "组织创建者不能退出，请先转让所有权或删除组织"}, status_code=400)
+    db.remove_org_member(org_id, user["user_id"])
+    return JSONResponse({"status": "ok"})

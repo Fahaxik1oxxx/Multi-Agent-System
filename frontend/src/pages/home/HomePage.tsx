@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import apiClient from '@/api/client';
 import { workspacesApi } from '@/api/workspaces';
 import { projectsApi } from '@/api/projects';
 import { sessionsApi } from '@/api/sessions';
 import { knowledgeApi } from '@/api/knowledge';
-import { MessageSquare, Loader2, FolderKanban, Zap, Plus, Paperclip } from 'lucide-react';
+import { MessageSquare, Loader2, FolderKanban, Zap, Plus, Paperclip, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Session } from '@/types/api';
 import type { Project } from '@/types/workspace';
@@ -42,6 +43,7 @@ export function HomePage() {
   const [defaultProjectId, setDefaultProjectId] = useState<string | null>(null);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [recentProjectIds, setRecentProjectIds] = useState<string[]>([]);
+  const [myOrgs, setMyOrgs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,26 +73,10 @@ export function HomePage() {
         let defaultProj = projects.find((p: any) => p.name === DEFAULT_PROJECT_NAME);
 
         if (!defaultProj) {
-          // 二次确认：防止并发创建重复项目
-          const recheck = await projectsApi.list(wsId);
-          const recheckProjects = recheck.data || [];
-          const existing = recheckProjects.find((p: any) => p.name === DEFAULT_PROJECT_NAME);
-          if (existing) {
-            defaultProj = existing;
-          } else {
-            try {
-              const created = await projectsApi.create(wsId, { name: DEFAULT_PROJECT_NAME, description: '首页快速对话' });
-              defaultProj = created.data;
-            } catch {
-              // 创建失败，可能是并发导致的，再次尝试查找
-              const retry = await projectsApi.list(wsId);
-              const retryProjects = retry.data || [];
-              defaultProj = retryProjects.find((p: any) => p.name === DEFAULT_PROJECT_NAME) || null;
-            }
-          }
+          const created = await projectsApi.create(wsId, { name: DEFAULT_PROJECT_NAME, description: '首页快速对话' });
+          defaultProj = created.data;
         }
 
-        if (!defaultProj) return;
         const pid = defaultProj.id || defaultProj;
         setDefaultProjectId(pid);
 
@@ -124,6 +110,12 @@ export function HomePage() {
           projectsList.forEach((p: any) => projectNameMap.set(p.id, p.name));
         }
         setAllProjects(projectsList);
+
+        // 获取我的组织
+        try {
+          const orgRes = await apiClient.get('/orgs');
+          setMyOrgs(orgRes.data || []);
+        } catch {}
 
         // 读取最近访问的项目
         try {
@@ -263,32 +255,50 @@ export function HomePage() {
           </div>
         </div>
 
-        {/* 最近项目 */}
-        {!isGuest && recentProjectIds.length > 0 && (
+        {/* 快速打开：最近项目 + 我的组织 */}
+        {!isGuest && (recentProjectIds.length > 0 || myOrgs.length > 0) && (
           <div className="mb-5">
             <div className="flex items-center gap-2 mb-2.5">
               <div className="flex-1 border-t border-[#eceef2]" />
-              <span className="text-[10px] text-[#b0b8c1]">最近项目</span>
+              <span className="text-[10px] text-[#b0b8c1]">快速打开</span>
               <div className="flex-1 border-t border-[#eceef2]" />
-              <button onClick={() => navigate('/v3/personal')} className="text-[10px] text-[#4f8cff] hover:underline ml-2 shrink-0">管理</button>
             </div>
-            <div className="flex gap-2 justify-center">
-              {recentProjectIds.slice(0, 3).map(pid => {
+            <div className="flex gap-3 justify-center">
+              {/* 最近项目（最多 2 个） */}
+              {recentProjectIds.slice(0, 2).map(pid => {
                 const p = allProjects.find(pr => pr.id === pid);
                 if (!p) return null;
                 const isQuick = p.name === DEFAULT_PROJECT_NAME;
                 return (
                   <button key={pid} onClick={() => navigateToChat(pid)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#eceef2] bg-white hover:border-[#4f8cff] hover:shadow-sm transition-all text-left">
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#eceef2] bg-white hover:border-[#4f8cff] hover:shadow-sm transition-all text-left flex-1 max-w-[200px]">
                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isQuick ? 'bg-[#4f8cff]/10' : 'bg-[#f0f4ff]'}`}>
                       {isQuick ? <Zap size={14} className="text-[#4f8cff]" /> : <FolderKanban size={14} className="text-[#4f8cff]" />}
                     </div>
-                    <div>
-                      <div className="text-xs font-medium text-[#1d1d1f]">{p.name}</div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium text-[#1d1d1f] truncate">{p.name}</div>
+                      <div className="text-[10px] text-[#9ca3af]">最近项目</div>
                     </div>
                   </button>
                 );
               })}
+              {/* 分割线 */}
+              {recentProjectIds.length > 0 && myOrgs.length > 0 && (
+                <div className="w-px bg-[#e0e4e8] self-stretch" />
+              )}
+              {/* 我的组织（最多 2 个） */}
+              {myOrgs.slice(0, 2).map((org: any) => (
+                <button key={org.id} onClick={() => navigate(`/v3/team/${org.id}`)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[#eceef2] bg-white hover:border-[#4f8cff] hover:shadow-sm transition-all text-left flex-1 max-w-[200px]">
+                  <div className="w-7 h-7 rounded-lg bg-[#4f8cff]/10 flex items-center justify-center shrink-0">
+                    <Users size={14} className="text-[#4f8cff]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-[#1d1d1f]">{org.name}</div>
+                    <div className="text-[10px] text-[#9ca3af]">{org.member_count} 名成员</div>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}

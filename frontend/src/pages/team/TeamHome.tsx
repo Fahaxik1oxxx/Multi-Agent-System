@@ -1,9 +1,23 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '@/api/client';
 import { toast } from 'sonner';
-import { Plus, Users, ArrowLeft } from 'lucide-react';
+import { Plus, Users, ArrowLeft, Share2, Trash2, MoreVertical, LogOut, Star } from 'lucide-react';
+import { ConfirmModal } from '@/components/shared/ConfirmModal';
+
+const PINNED_KEY = 'v3_pinned_orgs';
+
+function getPinned(): string[] {
+  try { return JSON.parse(localStorage.getItem(PINNED_KEY) || '[]'); } catch { return []; }
+}
+
+function togglePinned(id: string): string[] {
+  const pinned = getPinned();
+  const next = pinned.includes(id) ? pinned.filter(x => x !== id) : [id, ...pinned];
+  localStorage.setItem(PINNED_KEY, JSON.stringify(next));
+  return next;
+}
 
 export function TeamHome() {
   const navigate = useNavigate();
@@ -11,6 +25,10 @@ export function TeamHome() {
   const [showCreate, setShowCreate] = useState(false);
   const [orgName, setOrgName] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [menuOrgId, setMenuOrgId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pinnedIds, setPinnedIds] = useState<string[]>(getPinned);
+  const [confirmState, setConfirmState] = useState<{ title: string; message: string; action: () => void } | null>(null);
 
   const { data: orgs = [], isLoading } = useQuery({
     queryKey: ['orgs'],
@@ -20,13 +38,27 @@ export function TeamHome() {
     },
   });
 
+  // 排序：置顶 > 我创建的 > 我加入的
+  const sortedOrgs = useMemo(() => {
+    const owned = orgs.filter((o: any) => o.my_role === 'owner');
+    const joined = orgs.filter((o: any) => o.my_role !== 'owner');
+    const sortFn = (a: any, b: any) => {
+      const aPinned = pinnedIds.includes(a.id) ? 0 : 1;
+      const bPinned = pinnedIds.includes(b.id) ? 0 : 1;
+      if (aPinned !== bPinned) return aPinned - bPinned;
+      return 0;
+    };
+    owned.sort(sortFn);
+    joined.sort(sortFn);
+    return { owned, joined };
+  }, [orgs, pinnedIds]);
+
   const createMutation = useMutation({
     mutationFn: async (name: string) => {
       const res = await apiClient.post('/orgs', { name, description: '' });
       return res.data;
     },
-    onSuccess: (data) => {
-      toast.success(`组织「${data.name}」已创建`);
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['orgs'] });
       setShowCreate(false);
       setOrgName('');
@@ -47,6 +79,126 @@ export function TeamHome() {
     onError: (err: any) => toast.error(err?.response?.data?.error || '加入失败'),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (orgId: string) => {
+      await apiClient.delete(`/orgs/${orgId}`);
+    },
+    onSuccess: () => {
+      toast.success('组织已删除');
+      qc.invalidateQueries({ queryKey: ['orgs'] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || '删除失败'),
+  });
+
+  const copyInviteCode = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      toast.success(`已复制邀请码: ${code}`, { duration: 5000 });
+    }).catch(() => {
+      toast.success(`邀请码: ${code}`, { duration: 8000 });
+    });
+    setMenuOrgId(null);
+  };
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOrgId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const leaveOrgMutation = useMutation({
+    mutationFn: async (orgId: string) => {
+      await apiClient.post(`/orgs/${orgId}/leave`);
+    },
+    onSuccess: () => {
+      toast.success('已退出组织');
+      qc.invalidateQueries({ queryKey: ['orgs'] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.error || '退出失败'),
+  });
+
+  const OrgCard = ({ org }: { org: any }) => {
+    const pinned = pinnedIds.includes(org.id);
+    return (
+      <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[#e0e4e8] hover:border-[#4f8cff] hover:shadow-sm transition-all group">
+        <div className="w-10 h-10 rounded-lg bg-[#4f8cff]/10 flex items-center justify-center shrink-0 cursor-pointer"
+             onClick={() => navigate(`/v3/team/${org.id}`)}>
+          <Users size={20} className="text-[#4f8cff]" />
+        </div>
+        <div className="flex-1 min-w-0 cursor-pointer"
+             onClick={() => navigate(`/v3/team/${org.id}`)}>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-[#1d1d1f]">{org.name}</h3>
+            {pinned && <Star size={12} className="text-[#f59e0b] fill-[#f59e0b]" />}
+          </div>
+          <p className="text-xs text-[#9ca3af]">
+            {org.member_count} 名成员 · 角色: {org.my_role}
+          </p>
+        </div>
+        <div className="relative shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOrgId(menuOrgId === org.id ? null : org.id); }}
+            className="btn btn-sm btn-ghost px-1.5"
+            style={{ borderRadius: '8px' }}
+          >
+            <MoreVertical size={16} className="text-[#81858c]" />
+          </button>
+          {menuOrgId === org.id && (
+            <div ref={menuRef}
+              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-xl shadow-lg border border-[#e0e4e8] overflow-hidden z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => { setPinnedIds(togglePinned(org.id)); setMenuOrgId(null); }}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-[#1d1d1f] hover:bg-gray-50"
+              >
+                <Star size={14} className={pinned ? 'text-[#f59e0b] fill-[#f59e0b]' : 'text-[#81858c]'} />
+                {pinned ? '取消置顶' : '置顶'}
+              </button>
+              <button
+                onClick={() => copyInviteCode(org.invite_code)}
+                className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-[#1d1d1f] hover:bg-gray-50"
+              >
+                <Share2 size={14} className="text-[#4f8cff]" />
+                分享邀请码
+              </button>
+              {org.my_role !== 'owner' && (
+                <button
+                  onClick={() => {
+                    setConfirmState({ title: '退出组织', message: `确定退出组织「${org.name}」？`, action: () => { leaveOrgMutation.mutate(org.id); setConfirmState(null); } });
+                    setMenuOrgId(null);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-[#1d1d1f] hover:bg-gray-50"
+                >
+                  <LogOut size={14} className="text-[#f59e0b]" />
+                  退出组织
+                </button>
+              )}
+              {org.my_role === 'owner' && (
+                <>
+                  <div className="border-t border-[#e0e4e8]" />
+                  <button
+                    onClick={() => {
+                      setConfirmState({ title: '删除组织', message: `确定删除组织「${org.name}」？此操作不可撤销。`, action: () => { deleteMutation.mutate(org.id); setConfirmState(null); } });
+                      setMenuOrgId(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-[#ef4444] hover:bg-red-50"
+                  >
+                    <Trash2 size={14} />
+                    删除组织
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
       <div className="flex items-center gap-4">
@@ -56,10 +208,12 @@ export function TeamHome() {
         <h1 className="text-2xl font-bold text-[#1d1d1f]">团队模式</h1>
       </div>
 
-      {/* 我的组织 */}
+      {/* 我创建的 */}
       <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-[#1d1d1f]">我的组织</h2>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-lg font-semibold text-[#1d1d1f]">我创建的</h2>
+          <span className="text-xs text-[#b0b8c1]">({sortedOrgs.owned.length})</span>
+          <div className="flex-1" />
           <button
             className="btn btn-sm"
             onClick={() => setShowCreate(true)}
@@ -70,27 +224,33 @@ export function TeamHome() {
         </div>
         {isLoading ? (
           <div className="flex justify-center py-8"><span className="loading loading-spinner" /></div>
-        ) : orgs.length === 0 ? (
-          <p className="text-sm text-[#9ca3af] text-center py-8">暂无组织，创建一个吧</p>
+        ) : sortedOrgs.owned.length === 0 ? (
+          <div className="text-center py-6 bg-white rounded-xl border border-[#e0e4e8]">
+            <p className="text-sm text-[#9ca3af]">还没有创建组织</p>
+            <button onClick={() => setShowCreate(true)}
+              className="text-xs text-[#4f8cff] hover:underline mt-1">创建一个</button>
+          </div>
         ) : (
           <div className="space-y-3">
-            {orgs.map((org: any) => (
-              <div
-                key={org.id}
-                className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[#e0e4e8] cursor-pointer hover:border-[#4f8cff] hover:shadow-sm transition-all"
-                onClick={() => navigate(`/v3/team/${org.id}`)}
-              >
-                <div className="w-10 h-10 rounded-lg bg-[#4f8cff]/10 flex items-center justify-center shrink-0">
-                  <Users size={20} className="text-[#4f8cff]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-[#1d1d1f]">{org.name}</h3>
-                  <p className="text-xs text-[#9ca3af]">
-                    {org.member_count} 名成员 · 角色: {org.my_role}
-                  </p>
-                </div>
-              </div>
-            ))}
+            {sortedOrgs.owned.map((org: any) => <OrgCard key={org.id} org={org} />)}
+          </div>
+        )}
+      </section>
+
+      {/* 我加入的 */}
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-lg font-semibold text-[#1d1d1f]">我加入的</h2>
+          <span className="text-xs text-[#b0b8c1]">({sortedOrgs.joined.length})</span>
+        </div>
+        {sortedOrgs.joined.length === 0 ? (
+          <div className="text-center py-6 bg-white rounded-xl border border-[#e0e4e8]">
+            <p className="text-sm text-[#9ca3af]">还没有加入组织</p>
+            <p className="text-xs text-[#b0b8c1] mt-1">通过邀请码加入一个组织</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {sortedOrgs.joined.map((org: any) => <OrgCard key={org.id} org={org} />)}
           </div>
         )}
       </section>
@@ -147,6 +307,17 @@ export function TeamHome() {
           </div>
         </div>
       )}
+
+      {/* 确认弹窗 */}
+      <ConfirmModal
+        isOpen={!!confirmState}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmText="确定"
+        confirmStyle="danger"
+        onConfirm={() => { confirmState?.action(); setConfirmState(null); }}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

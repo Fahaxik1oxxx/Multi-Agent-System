@@ -18,7 +18,7 @@ from cryptography.fernet import Fernet
 class Database:
     """SQLite 数据库封装，纯增删改查，不包含业务校验。"""
 
-    TARGET_SCHEMA_VERSION = 8
+    TARGET_SCHEMA_VERSION = 9
     # 0 → 无数据库 / 未初始化
     # 1 → 初始表: users, sessions, user_configs
     # 2 → 新增: messages_fts (FTS5)
@@ -266,6 +266,22 @@ class Database:
                     created_at   TEXT DEFAULT (datetime('now', 'localtime'))
                 );
                 CREATE INDEX IF NOT EXISTS idx_step_session ON step_logs(session_id);
+            """)
+        elif version == 9:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS org_files (
+                    id            TEXT PRIMARY KEY,
+                    org_id        TEXT NOT NULL,
+                    file_name     TEXT NOT NULL,
+                    file_path     TEXT NOT NULL,
+                    size          INTEGER DEFAULT 0,
+                    mime_type     TEXT DEFAULT '',
+                    uploaded_by   TEXT NOT NULL,
+                    created_at    TEXT DEFAULT (datetime('now', 'localtime')),
+                    updated_at    TEXT DEFAULT (datetime('now', 'localtime')),
+                    FOREIGN KEY (org_id) REFERENCES organizations(id),
+                    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+                );
             """)
         else:
             raise ValueError(f"未知的迁移版本: {version}")
@@ -950,6 +966,63 @@ class Database:
             else:
                 return False
         return True
+
+    # ── 团队文档 ──
+
+    def create_org_file(self, org_id: str, file_name: str, file_path: str, size: int, mime_type: str, uploaded_by: str) -> str:
+        fid = str(uuid.uuid4())
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT INTO org_files (id, org_id, file_name, file_path, size, mime_type, uploaded_by) VALUES (?,?,?,?,?,?,?)",
+                (fid, org_id, file_name, file_path, size, mime_type, uploaded_by),
+            )
+        return fid
+
+    def list_org_files(self, org_id: str) -> list:
+        with self._conn() as conn:
+            rows = conn.execute("""
+                SELECT f.*, u.name as uploaded_by_name
+                FROM org_files f JOIN users u ON f.uploaded_by = u.id
+                WHERE f.org_id = ?
+                ORDER BY f.created_at DESC
+            """, (org_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_org_file(self, file_id: str):
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM org_files WHERE id = ?", (file_id,)).fetchone()
+        return dict(row) if row else None
+
+    def rename_org_file(self, file_id: str, new_name: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "UPDATE org_files SET file_name = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+                (new_name, file_id),
+            )
+            return cur.rowcount > 0
+
+    def delete_org_file(self, file_id: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("DELETE FROM org_files WHERE id = ?", (file_id,))
+            return cur.rowcount > 0
+
+    # ── 频道管理 ──
+
+    def delete_channel(self, channel_id: str) -> bool:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM org_messages WHERE channel_id = ?", (channel_id,))
+            cur = conn.execute("DELETE FROM org_channels WHERE id = ?", (channel_id,))
+            return cur.rowcount > 0
+
+    def clear_channel_messages(self, channel_id: str) -> bool:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM org_messages WHERE channel_id = ?", (channel_id,))
+            return True
+
+    def rename_channel(self, channel_id: str, new_name: str) -> bool:
+        with self._conn() as conn:
+            cur = conn.execute("UPDATE org_channels SET name = ? WHERE id = ?", (new_name, channel_id))
+            return cur.rowcount > 0
 
     def get_user_name(self, user_id: str) -> str:
         with self._conn() as conn:

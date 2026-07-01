@@ -51,10 +51,47 @@ async def create_channel(request: Request, org_id: str, user: dict = Depends(req
         return JSONResponse({"error": "频道名不能为空"}, status_code=400)
     db = _get_db(request)
     role = db.get_org_member_role(org_id, user["user_id"])
-    if role is None:
-        return JSONResponse({"error": "无权创建频道"}, status_code=403)
+    if role != "owner" and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "仅组织管理员可创建频道"}, status_code=403)
     cid = db.create_channel(org_id, name)
     return JSONResponse({"id": cid, "name": name, "status": "ok"}, status_code=201)
+
+
+@chat_router.put("/{org_id}/channels/{channel_id}")
+async def rename_channel(request: Request, org_id: str, channel_id: str, user: dict = Depends(require_auth)):
+    data = await request.json()
+    new_name = (data.get("name") or "").strip()
+    if not new_name:
+        return JSONResponse({"error": "频道名不能为空"}, status_code=400)
+    db = _get_db(request)
+    role = db.get_org_member_role(org_id, user["user_id"])
+    if role != "owner" and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "仅组织管理员可重命名频道"}, status_code=403)
+    if not db.rename_channel(channel_id, new_name):
+        return JSONResponse({"error": "频道不存在"}, status_code=404)
+    return JSONResponse({"status": "ok"})
+
+
+@chat_router.delete("/{org_id}/channels/{channel_id}")
+async def delete_channel(request: Request, org_id: str, channel_id: str, user: dict = Depends(require_auth)):
+    db = _get_db(request)
+    role = db.get_org_member_role(org_id, user["user_id"])
+    if role != "owner" and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "仅组织管理员可删除频道"}, status_code=403)
+    if not db.delete_channel(channel_id):
+        return JSONResponse({"error": "频道不存在"}, status_code=404)
+    return JSONResponse({"status": "ok"})
+
+
+@chat_router.delete("/{org_id}/channels/{channel_id}/messages")
+async def clear_channel_messages(request: Request, org_id: str, channel_id: str, user: dict = Depends(require_auth)):
+    """清空频道聊天记录（不删除频道）"""
+    db = _get_db(request)
+    role = db.get_org_member_role(org_id, user["user_id"])
+    if role != "owner" and not db.is_admin(user["user_id"]):
+        return JSONResponse({"error": "仅组织管理员可清空聊天记录"}, status_code=403)
+    db.clear_channel_messages(channel_id)
+    return JSONResponse({"status": "ok"})
 
 
 # ── 消息 ──
@@ -85,31 +122,26 @@ async def send_message(request: Request, org_id: str, channel_id: str, user: dic
     mid = db.create_message(channel_id, user["user_id"], content)
     user_name = db.get_user_name(user["user_id"])
 
-    agent_reply = None
-    if "@agent" in content:
-        agent_reply = await _handle_agent_command(content, org_id, user["user_id"], db)
-
-    msg = {"id": mid, "content": content, "user_name": user_name, "is_agent": 0}
+    # 立即广播用户消息
+    msg = {"id": mid, "channel_id": channel_id, "content": content, "user_id": user["user_id"], "user_name": user_name, "is_agent": 0}
     await _broadcast(org_id, {"type": "message", "message": msg})
 
-    if agent_reply:
-        await _broadcast(org_id, {"type": "message", "message": agent_reply})
+    # 后台处理 @agent 命令（不阻塞返回）
+    if "@agent" in content:
+        asyncio.create_task(_handle_agent_and_broadcast(content, org_id, channel_id, user["user_id"], db))
 
-    return JSONResponse({"id": mid, "status": "ok", "agent_reply": agent_reply})
+    return JSONResponse({"id": mid, "status": "ok"})
 
 
-async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> dict | None:
+async def _handle_agent_command(content: str, org_id: str, channel_id: str, user_id: str, db) -> dict | None:
     import re
 
-    channels = db.list_channels(org_id)
-    default_channel = channels[0]["id"] if channels else ""
+    default_channel = channel_id
 
     # @agent 总结一下
     if re.search(r"@agent\s*总结", content):
-        messages = []
-        for ch in channels:
-            msgs = db.list_messages(ch["id"], limit=20)
-            messages.extend([m["content"] for m in msgs if not m.get("is_agent")])
+        msgs = db.list_messages(channel_id, limit=20)
+        messages = [m["content"] for m in msgs if not m.get("is_agent")]
         if not messages:
             content_text = "📋 暂无消息可总结。"
         else:
@@ -139,6 +171,19 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
         mid = db.create_message(default_channel, user_id, content_text, is_agent=1)
         return {"id": mid, "content": content_text, "user_name": "🤖 Agent", "is_agent": 1}
 
+    # @agent 查看 xxx（读取团队文档）
+    read_match = re.search(r"@agent\s*查看\s*(.+)", content)
+    if read_match:
+        query = read_match.group(1).strip()
+        try:
+            from tools import read_org_file
+            result = read_org_file(query)
+            content_text = f"📖 文档内容：\n\n{result}"
+        except Exception as e:
+            content_text = f"❌ 读取失败: {e}"
+        mid = db.create_message(default_channel, user_id, content_text, is_agent=1)
+        return {"id": mid, "content": content_text, "user_name": "🤖 Agent", "is_agent": 1}
+
     # @agent 搜索 xxx
     search_match = re.search(r"@agent\s*搜索\s*(.+)", content)
     if search_match:
@@ -159,6 +204,18 @@ async def _handle_agent_command(content: str, org_id: str, user_id: str, db) -> 
         return {"id": mid, "content": content_text, "user_name": "🤖 Agent", "is_agent": 1}
 
     return None
+
+
+async def _handle_agent_and_broadcast(content: str, org_id: str, channel_id: str, user_id: str, db):
+    """后台处理 @agent 命令，完成后通过 SSE 广播"""
+    try:
+        user_helpers = __import__("user.helpers", fromlist=["_get_db"])
+        agent_reply = await _handle_agent_command(content, org_id, channel_id, user_id, db)
+        if agent_reply:
+            await _broadcast(org_id, {"type": "message", "message": agent_reply})
+    except Exception as e:
+        import logging
+        logging.error(f"后台 Agent 处理异常: {e}")
 
 
 # ── SSE 推送 ──

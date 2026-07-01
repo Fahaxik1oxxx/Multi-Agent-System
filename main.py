@@ -115,6 +115,10 @@ from workspace.team_chat import chat_router as team_chat_router
 
 app.include_router(team_chat_router, prefix="/api/orgs", tags=["团队聊天"])
 
+from workspace.org_files import file_router
+
+app.include_router(file_router, prefix="/api/orgs", tags=["团队文档"])
+
 @app.get("/api/monitor/session/{session_id}")
 async def get_monitor_session(session_id: str, request: Request):
     """获取会话的步骤日志"""
