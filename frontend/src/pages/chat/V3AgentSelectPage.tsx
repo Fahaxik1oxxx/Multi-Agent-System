@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { projectsApi, configsApi } from '@/api/projects';
 import { Check, Sparkles, Puzzle, FileCode, Bot, Loader2, Plus, FolderKanban, GitBranch, Braces, Pencil, Trash2, X, CheckCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ALL_AGENTS } from '@/data/agents';
+
+interface SavedConfig {
+  id: string;
+  name: string;
+  agents: string[];
+  pipeline?: Record<string, unknown>;
+  prompts?: Record<string, string>;
+  is_public?: number;
+  project_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
 const PRESETS = [
   { id: 'auto', icon: Sparkles, label: '默认智能体', desc: '8 Agent 全流水线协作', agents: ALL_AGENTS.map(a => a.key), color: '#4f8cff' },
@@ -98,22 +110,22 @@ export function V3AgentSelectPage() {
   const [saving, setSaving] = useState(false);
 
   // 加载已有配置
-  const [savedConfigs, setSavedConfigs] = useState<any[]>([]);
+  const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>([]);
 
-  const reloadConfigs = async () => {
+  const reloadConfigs = useCallback(async () => {
     try {
-      const res = await configsApi.list(); // 不传 projectId = 全局配置
+      const res = await configsApi.list();
       setSavedConfigs(res.data);
     } catch { setSavedConfigs([]); }
-  };
+  }, []);
 
-  useEffect(() => { reloadConfigs(); }, []); // mount 时加载全局配置
+  useEffect(() => { reloadConfigs(); }, [reloadConfigs]);
 
   // 监听编排保存事件，自动刷新列表
   useEffect(() => {
     window.addEventListener('orchestra-saved', reloadConfigs);
     return () => window.removeEventListener('orchestra-saved', reloadConfigs);
-  }, [projectId]);
+  }, [reloadConfigs]);
 
   // Auto-migrate old localStorage configs to DB
   useEffect(() => {

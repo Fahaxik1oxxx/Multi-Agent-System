@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse, Response
 
 from user.helpers import require_auth, _get_db
+from main import limiter
 
 router = APIRouter()
 
@@ -17,6 +18,7 @@ router = APIRouter()
 
 
 @router.post("/configs")
+@limiter.limit("30/hour")
 async def create_config(request: Request, user: dict = Depends(require_auth)):
     data = await request.json()
     name = (data.get("name") or "").strip()

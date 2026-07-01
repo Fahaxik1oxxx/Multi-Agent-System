@@ -5,6 +5,7 @@ import { Home, User, Users, Settings, LogOut, Shield, Target } from 'lucide-reac
 import { SettingsModal } from '@/components/shared/SettingsModal';
 import { PageModal } from '@/components/shared/PageModal';
 import { avatarColor } from '@/lib/avatar';
+import { toast } from 'sonner';
 import { userApi } from '@/api/user';
 
 const navItems = [
@@ -131,10 +132,13 @@ export function V3Sidebar() {
             <button className="btn btn-sm" onClick={() => {
               if (isGuest) {
                 localStorage.setItem('v3_current_goal', goalText);
+                setGoalOpen(false);
               } else {
-                userApi.updateProfile({ goal: goalText }).catch(() => {});
+                userApi.updateProfile({ goal: goalText }).then(() => {
+                  toast.success('目标已保存');
+                  setGoalOpen(false);
+                }).catch(() => toast.error('保存失败'));
               }
-              setGoalOpen(false);
             }}
               style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>
               保存

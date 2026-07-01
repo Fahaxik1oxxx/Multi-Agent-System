@@ -102,6 +102,7 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
   const [pipelineKey, setPipelineKey] = useState(0);
   const [dirty, setDirty] = useState(false);
   const mountSkipRef = useRef(true);
+  const savedConfigIdRef = useRef<string | null>(null); // 防止重复创建配置
 
   const handlePipelineChange = useCallback((p: PipelineConfig) => {
     setPipeline(p);
@@ -131,12 +132,15 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-config', projectId] });
       setDirty(false);
-      const agentNames = pipeline.nodes.filter(n => n.type === 'agent' && n.data?.agent).map(n => n.data!.agent!);
-      configsApi.create({
-        name: `编排配置 ${new Date().toLocaleTimeString('zh-CN')}`,
-        agents: agentNames,
-        pipeline: pipeline,
-      }).catch(() => { /* non-critical */ });
+      // 防止每次保存都创建新配置行（同一编辑会话只建一次）
+      if (!savedConfigIdRef.current) {
+        const agentNames = pipeline.nodes.filter(n => n.type === 'agent' && n.data?.agent).map(n => n.data!.agent!);
+        configsApi.create({
+          name: `编排配置 ${new Date().toLocaleTimeString('zh-CN')}`,
+          agents: agentNames,
+          pipeline: pipeline,
+        }).then(res => { savedConfigIdRef.current = res.data?.id; }).catch(() => {});
+      }
       toast.success('流水线已保存');
       window.dispatchEvent(new CustomEvent('orchestra-saved'));
       setTimeout(() => navigate(`/v3/personal/${projectId}/agents`, { state: { tab: 'custom' } }), 600);
