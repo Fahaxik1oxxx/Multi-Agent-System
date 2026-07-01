@@ -138,7 +138,6 @@ export function TeamChat() {
                     const msg = event.message;
                     // 自己的消息由 onMutate 处理，SSE 不理（已有乐观消息）
                     if (msg._clientId && pendingRef.current.has(msg._clientId)) {
-                      pendingRef.current.delete(msg._clientId);
                       continue;
                     }
                     setMessages((prev) => {
@@ -220,13 +219,12 @@ export function TeamChat() {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
       });
     },
-    onSuccess: (res: any) => {
-      // 只移除 pending 标记，SSE 已忽略这条消息，不需要再改 state
-      if (pendingRef.current.size > 0) pendingRef.current.clear();
+    onSuccess: (_data: any, variables: { content: string; _clientId: string }) => {
+      pendingRef.current.delete(variables._clientId);
     },
-    onError: (err: any) => {
-      pendingRef.current.clear();
-      toast.error(err?.response?.data?.error || '发送失败');
+    onError: (_err: any, variables: { content: string; _clientId: string }) => {
+      pendingRef.current.delete(variables._clientId);
+      toast.error(_err?.response?.data?.error || '发送失败');
     },
   });
 
