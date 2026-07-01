@@ -98,6 +98,10 @@ from app.configs import router as configs_router
 
 app.include_router(configs_router, prefix="/api", tags=["配置"])
 
+from app.market import router as market_router
+
+app.include_router(market_router, prefix="/api", tags=["模板市场"])
+
 from user.auth import decode_jwt
 from user.routes import auth_router, session_router, user_router
 
