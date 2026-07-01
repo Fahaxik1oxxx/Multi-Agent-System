@@ -27,6 +27,8 @@ export function TeamChat() {
   const msgContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [newMsgCount, setNewMsgCount] = useState(0);
+  // 追踪待替换的乐观消息 ID（解决 React Strict Mode 双乐观消息 + SSE 只替换一个的 bug）
+  const pendingOptRef = useRef<Set<string>>(new Set());
   const [showTodoInput, setShowTodoInput] = useState(false);
   const [todoInputVal, setTodoInputVal] = useState('');
   const [todoAssignee, setTodoAssignee] = useState<string>('');
@@ -36,7 +38,12 @@ export function TeamChat() {
     queryFn: async () => {
       const res = await apiClient.get(`/orgs/${orgId}/channels`);
       const data = res.data;
-      if (data.length > 0 && !activeChannel) setActiveChannel(data[0].id);
+      if (data.length > 0 && !activeChannel) {
+        // 恢复上次离开时的频道
+        const lastCh = localStorage.getItem(`v3_last_channel_${orgId}`);
+        const found = lastCh && data.find((ch: any) => ch.id === lastCh);
+        setActiveChannel(found ? found.id : data[0].id);
+      }
       return data;
     },
     enabled: !!orgId,
@@ -100,11 +107,19 @@ export function TeamChat() {
     try {
       const res = await apiClient.get(`/orgs/${orgId}/channels/${activeChannel}/messages`);
       setMessages(res.data);
+      // 加载完成后滚到底部
+      requestAnimationFrame(() => {
+        scrollToBottom(false);
+      });
     } catch { /* ignore */ }
   };
 
   useEffect(() => {
     fetchMessages();
+    // 记住最后访问的频道
+    if (activeChannel && orgId) {
+      localStorage.setItem(`v3_last_channel_${orgId}`, activeChannel);
+    }
   }, [activeChannel]);
 
   // SSE 连接
@@ -136,15 +151,20 @@ export function TeamChat() {
                   if (event.type === 'message' && event.message) {
                     const msg = event.message;
                     setMessages((prev) => {
-                      // 如果有同内容的乐观消息，替换为真实消息
-                      const optIdx = prev.findIndex(m => m.id?.startsWith('opt-') && m.content === msg.content && m.user_id === msg.user_id);
-                      if (optIdx >= 0) {
-                        const next = [...prev];
-                        next[optIdx] = msg;
-                        return next;
-                      }
-                      // 否则去重追加
-                      return prev.some(m => m.id === msg.id) ? prev : [...prev, msg];
+                      // 1. 清理所有匹配的乐观消息（解决 Strict Mode 双乐观消息 bug）
+                      const filtered = prev.filter(m => {
+                        if (m.id?.startsWith('opt-')){
+                          if ( m.content === msg.content && m.user_id === msg.user_id){
+                            pendingOptRef.current.delete(m.id);
+                            return false;
+                          }
+                        }
+                        return true;
+                      });
+                      // 2. 去重：检查真实消息 ID 是否已存在
+                      if (filtered.some(m => m.id === msg.id)) return filtered;
+                      // 3. 追加真实消息
+                      return [...filtered, msg];
                     });
                     // 别人发的消息且不在底部时，累计未读提示
                     const el = msgContainerRef.current;
@@ -208,16 +228,23 @@ export function TeamChat() {
     },
     onMutate: (content: string) => {
       // 乐观更新：立即显示消息 + 清空输入框
-      const optimisticMsg = {
-        id: `opt-${Date.now()}`,
-        channel_id: activeChannel,
-        content: content,
-        user_id: currentUser?.user_id || 'unknown',
-        user_name: currentUser?.user_name || '我',
-        is_agent: 0,
-        created_at: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, optimisticMsg]);
+      const optId = `opt-${Date.now()}`;
+      pendingOptRef.current.add(optId);
+      setMessages((prev) => {
+        // 防止 Strict Mode 双调用产生重复乐观消息
+        const alreadyExists = prev.some(m => m.id?.startsWith('opt-') && m.content === content);
+        if (alreadyExists) return prev;
+        const optimisticMsg = {
+          id: optId,
+          channel_id: activeChannel,
+          content: content,
+          user_id: currentUser?.user_id || 'unknown',
+          user_name: currentUser?.user_name || '我',
+          is_agent: 0,
+          created_at: new Date().toISOString(),
+        };
+        return [...prev, optimisticMsg];
+      });
       setInput('');
       // 自己发送的消息，强制滚到底部
       setNewMsgCount(0);
@@ -367,8 +394,11 @@ export function TeamChat() {
                     : 'text-[#81858c] hover:bg-gray-100 hover:text-[#4b5563]'
                 }`}
                 onClick={() => {
-                  setActiveChannel(ch.id);
-                  setUnreadCounts((prev) => ({ ...prev, [ch.id]: 0 }));
+                  if (activeChannel !== ch.id) {
+                    setActiveChannel(ch.id);
+                    setUnreadCounts((prev) => ({ ...prev, [ch.id]: 0 }));
+                    localStorage.setItem(`v3_last_channel_${orgId}`, ch.id);
+                  }
                 }}
               >
                 # {ch.name}
