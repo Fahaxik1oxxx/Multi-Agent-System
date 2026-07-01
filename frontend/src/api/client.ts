@@ -1,7 +1,12 @@
 import axios from 'axios';
 
+// 生产环境用完整后端 URL，开发环境走 Vite 代理
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? `${import.meta.env.VITE_API_BASE_URL}/api`
+  : '/api';
+
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE,
   timeout: 95000,  // 略大于后端 90s 超时
   headers: { 'Content-Type': 'application/json' },
 });
