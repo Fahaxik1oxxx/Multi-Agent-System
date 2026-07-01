@@ -14,6 +14,8 @@ export function TeamChat() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
   const [activeChannel, setActiveChannel] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
@@ -137,7 +139,7 @@ export function TeamChat() {
                     const msg = event.message;
                     setMessages((prev) => {
                       // 自己的消息：SSE 只替换乐观消息，不追加（防止竞态导致左右重复）
-                      if (msg.user_id === currentUser?.user_id) {
+                      if (msg.user_id === currentUserRef.current?.user_id) {
                         const optIdx = prev.findIndex(m => m.id?.startsWith('opt-'));
                         if (optIdx >= 0) {
                           const next = [...prev];
@@ -152,7 +154,7 @@ export function TeamChat() {
                     });
                     // 别人发的消息且不在底部时，累计未读提示
                     const el = msgContainerRef.current;
-                    if (msg.user_id !== currentUser?.user_id && el) {
+                    if (msg.user_id !== currentUserRef.current?.user_id && el) {
                       const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
                       if (!nearBottom) {
                         setNewMsgCount((prev) => prev + 1);
