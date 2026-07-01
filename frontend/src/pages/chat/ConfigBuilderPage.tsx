@@ -24,7 +24,7 @@ export function ConfigBuilderPage() {
     if (!name.trim()) { toast.error('请输入配置名称'); return; }
     if (enabled.length === 0) { toast.error('请至少选择一个 Agent'); return; }
     try {
-      await configsApi.create({ name: name.trim(), agents: enabled, project_id: projectId });
+      await configsApi.create({ name: name.trim(), agents: enabled });
       toast.success('配置已保存');
       navigate(`/v3/personal/${projectId}/agents`, { state: { tab: 'custom' } });
     } catch { toast.error('保存失败'); }

@@ -135,7 +135,6 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
       configsApi.create({
         name: `编排配置 ${new Date().toLocaleTimeString('zh-CN')}`,
         agents: agentNames,
-        project_id: projectId,
         pipeline: pipeline,
       }).catch(() => { /* non-critical */ });
       toast.success('流水线已保存');

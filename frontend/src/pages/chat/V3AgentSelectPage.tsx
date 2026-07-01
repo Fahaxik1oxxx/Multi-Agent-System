@@ -101,14 +101,13 @@ export function V3AgentSelectPage() {
   const [savedConfigs, setSavedConfigs] = useState<any[]>([]);
 
   const reloadConfigs = async () => {
-    if (!projectId) return;
     try {
-      const res = await configsApi.list(projectId);
+      const res = await configsApi.list(); // 不传 projectId = 全局配置
       setSavedConfigs(res.data);
     } catch { setSavedConfigs([]); }
   };
 
-  useEffect(() => { reloadConfigs(); }, [projectId]);
+  useEffect(() => { reloadConfigs(); }, []); // mount 时加载全局配置
 
   // 监听编排保存事件，自动刷新列表
   useEffect(() => {
@@ -126,7 +125,7 @@ export function V3AgentSelectPage() {
       const items: { name: string; agents: string[] }[] = JSON.parse(oldData);
       if (!Array.isArray(items) || items.length === 0) { localStorage.removeItem(key); return; }
       Promise.all(items.map(item =>
-        configsApi.create({ name: item.name, agents: item.agents, project_id: projectId }).catch(() => null)
+        configsApi.create({ name: item.name, agents: item.agents }).catch(() => null)
       )).then(() => {
         localStorage.removeItem(key);
         reloadConfigs();
