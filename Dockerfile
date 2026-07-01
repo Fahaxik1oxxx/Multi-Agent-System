@@ -12,4 +12,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Railway 通过 PORT 环境变量指定端口
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8502}
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}

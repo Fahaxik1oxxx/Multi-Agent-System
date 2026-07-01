@@ -15,7 +15,7 @@ import { MonitorPage } from '@/pages/project/MonitorPage';
 import { EvaluationPage } from '@/pages/project/EvaluationPage';
 import { OrchestrationPage } from '@/pages/project/OrchestrationPage';
 import { TemplateMarket } from '@/pages/templates/TemplateMarket';
-import { AgentDesigner } from '@/pages/agent-design/AgentDesigner';
+
 import { AdminPage } from '@/pages/admin/AdminPage';
 import { TeamHome } from '@/pages/team/TeamHome';
 import { TeamChat } from '@/pages/team/TeamChat';
@@ -47,7 +47,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'personal/:projectId/config-builder', element: <div className="p-6 max-w-2xl mx-auto"><ConfigBuilderPage /></div> },
+      { path: 'personal/:projectId/config-builder', element: <ConfigBuilderPage /> },
       { path: 'personal/:projectId/agents', element: <V3AgentSelectPage /> },
       { path: 'personal/:projectId/chat', element: <V3ChatPage /> },
       { path: 'personal/:projectId/orchestra', element: <OrchestrationPage /> },
@@ -58,7 +58,7 @@ export const router = createBrowserRouter([
         { path: 'knowledge', element: <KnowledgePage /> },
         { path: 'templates', element: <TemplateMarket /> },
       ]},
-      { path: 'personal/agents', element: <div className="p-6 max-w-5xl mx-auto"><AgentDesigner /></div> },
+
       { path: 'team', element: <TeamHome /> },
       { path: 'team/:orgId', element: <TeamChat /> },
       {

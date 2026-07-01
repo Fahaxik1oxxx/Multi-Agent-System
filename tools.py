@@ -362,3 +362,37 @@ def web_search(query: str, max_results: int = 5) -> str:
     except Exception as e:
         return f"[搜索失败] {e}"
 
+
+# ===== 团队文档读取 =====
+
+
+@tool
+def read_org_file(query: str) -> str:
+    """根据文件名关键词查找团队文档并返回内容。参数 query: 文件名关键词"""
+    import os as _os
+
+    org_docs = _os.path.join(PROJECT_DIR, "org_docs")
+    if not _os.path.isdir(org_docs):
+        return f"[提示] 团队文档目录不存在，请先上传文档。"
+
+    matches = []
+    for root, dirs, files in _os.walk(org_docs):
+        for f in files:
+            if query.lower() in f.lower():
+                matches.append(_os.path.join(root, f))
+
+    if not matches:
+        return f"[提示] 未找到包含「{query}」的团队文档。"
+
+    results = []
+    for path in matches[:3]:
+        fname = _os.path.basename(path)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                content = fh.read()[:2000]
+        except (UnicodeDecodeError, OSError):
+            content = "[二进制文件，无法预览]"
+        results.append(f"📄 {fname}\n{content}")
+
+    return "\n\n---\n\n".join(results)
+

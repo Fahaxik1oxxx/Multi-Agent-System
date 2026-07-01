@@ -146,23 +146,6 @@ from workspace.org_files import file_router
 
 app.include_router(file_router, prefix="/api/orgs", tags=["团队文档"])
 
-@app.get("/api/monitor/session/{session_id}")
-async def get_monitor_session(session_id: str, request: Request):
-    """获取会话的步骤日志"""
-    from user.helpers import require_auth
-    db = request.app.state.db
-    steps = db.get_session_steps(session_id)
-    return JSONResponse({"steps": steps})
-
-
-@app.get("/api/eval/stats/{project_id}")
-async def get_eval_stats(project_id: str, days: int = 0, request: Request = None):
-    """获取项目评估统计"""
-    db = request.app.state.db
-    stats = db.get_eval_stats(project_id, days)
-    return JSONResponse(stats)
-
-
 from router.router import router as chat_router
 
 app.include_router(chat_router, prefix="/api", tags=["流式聊天"])

@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 function getParentPath(pathname: string): string | null {
   const s = pathname.split('/').filter(Boolean);
   if (s.length < 2) return null;
-  if (s[1] === 'personal' && s[3] === 'orchestra') return `/v3/personal/${s[2]}/chat`;
+  if (s[1] === 'personal' && s[3] === 'orchestra') return `/v3/personal/${s[2]}/agents`;
   if (s[1] === 'personal' && s[3] === 'monitor') return `/v3/personal/${s[2]}/chat`;
   if (s[1] === 'personal' && s[3] === 'config-builder') return `/v3/personal/${s[2]}/agents`;
   if (s[1] === 'templates') return '/v3/personal';
@@ -18,15 +18,17 @@ function getParentPath(pathname: string): string | null {
   return '/' + parent;
 }
 
-function getBreadcrumbs(pathname: string): { label: string; path?: string }[] | null {
+type Crumb = { label: string; path?: string; state?: any };
+
+function getBreadcrumbs(pathname: string): Crumb[] | null {
   const s = pathname.split('/').filter(Boolean);
   if (s.length < 2) return null;
   const section = s[1];
   if (section === 'personal') {
     if (s.length === 2) return [{ label: '个人空间' }, { label: '项目' }];
-    if (s[3] === 'agents') return [{ label: '个人空间', path: '/v3/personal' }, { label: '智能体设计' }];
+    if (s[3] === 'agents') return [{ label: '个人空间', path: '/v3/personal' }, { label: '选择智能体' }];
     if (s[3] === 'chat') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '对话' }];
-    if (s[3] === 'orchestra') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '编排' }];
+    if (s[3] === 'orchestra') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '选择智能体', path: `/v3/personal/${s[2]}/agents`, state: { tab: 'custom' } }, { label: '编排' }];
     if (s[3] === 'monitor') return [{ label: '个人空间', path: '/v3/personal' }, { label: '项目', path: '/v3/personal' }, { label: '监控' }];
   }
   if (section === 'personal' && s[3] === 'templates') return [{ label: '个人空间', path: '/v3/personal' }, { label: '模板市场' }];
@@ -48,7 +50,7 @@ export function V3AppShell() {
 
   const goBack = useCallback(() => {
     const prev = crumbs?.slice().reverse().find(c => c.path);
-    if (prev?.path) { navigate(prev.path); return; }
+    if (prev?.path) { navigate(prev.path, { state: prev.state }); return; }
     const parent = getParentPath(pathname);
     if (parent && parent !== '/v3') { navigate(parent); return; }
     navigate('/v3');
@@ -59,20 +61,23 @@ export function V3AppShell() {
       {/* 顶部导航栏 */}
       <V3Sidebar />
 
-      {/* 面包屑（chat 页面有自己的侧栏导航，无需显示） */}
+      {/* 面包屑 */}
       {crumbs && isSubPage && !pathname.endsWith('/chat') && (
-        <div className="flex items-center gap-2 px-4 py-1 bg-[#f9fafb] border-b border-[#eceef2] text-xs overflow-x-auto shrink-0">
-          <button onClick={goBack} className="flex items-center gap-1 text-[#4f8cff] hover:text-[#3a6fd8] shrink-0 whitespace-nowrap">
-            <ArrowLeft size={12} /> 返回
+        <div className="flex items-center gap-0 px-4 py-1.5 bg-white border-b border-[#eceef2] text-xs overflow-x-auto shrink-0">
+          <button onClick={goBack}
+            className="flex items-center gap-1 px-2 py-1 -ml-2 rounded-md text-[#4f8cff] hover:bg-[#4f8cff]/8 transition-colors shrink-0">
+            <ArrowLeft size={13} />
           </button>
-          <span className="text-[#d0d4d8] shrink-0">|</span>
           {crumbs.map((crumb, i) => (
-            <span key={i} className="flex items-center gap-1 shrink-0">
-              {i > 0 && <span className="text-[#d0d4d8] mx-0.5">/</span>}
+            <span key={i} className="flex items-center gap-0 shrink-0">
+              <span className="text-[#d0d4d8] mx-1">/</span>
               {crumb.path ? (
-                <button onClick={() => navigate(crumb.path!)} className="text-[#81858c] hover:text-[#4f8cff] whitespace-nowrap">{crumb.label}</button>
+                <button onClick={() => navigate(crumb.path!, { state: crumb.state })}
+                  className="px-1.5 py-0.5 rounded-md text-[#81858c] hover:text-[#4f8cff] hover:bg-[#f3f4f6] transition-colors whitespace-nowrap">
+                  {crumb.label}
+                </button>
               ) : (
-                <span className="text-[#4b5563] font-medium whitespace-nowrap">{crumb.label}</span>
+                <span className="px-1 text-[#1d1d1f] font-medium whitespace-nowrap">{crumb.label}</span>
               )}
             </span>
           ))}

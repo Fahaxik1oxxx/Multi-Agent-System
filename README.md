@@ -203,9 +203,9 @@ Multi-Agent-System/
 │
 ├── app/
 │   ├── __init__.py          # 包标识
-│   ├── chat.py              # 聊天管道（Router + 关键词覆写 + 90s 超时）
 │   ├── knowledge.py         # 知识库管理 API（Token 鉴权）
-│   └── ocr.py               # Tesseract OCR 模块
+│   ├── configs.py           # 智能体配置 CRUD + 发布/导出 API
+│   └── market.py            # 公共模板市场 API（浏览/搜索/复制）
 │
 ├── frontend/                # React V3 前端（TypeScript）
 │   ├── src/

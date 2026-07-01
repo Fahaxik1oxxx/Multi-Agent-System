@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react';
 import { ALL_AGENTS } from '@/data/agents';
 
-const AGENTS = ALL_AGENTS.map(a => ({ name: a.key, icon: a.icon }));
+const AGENTS = ALL_AGENTS.map(a => ({ name: a.key, icon: a.icon, color: a.color }));
 
 export function NodePalette() {
   const onDragStart = (event: DragEvent, type: string, agent?: string) => {
@@ -13,99 +13,44 @@ export function NodePalette() {
   };
 
   return (
-    <div style={{ padding: '12px' }}>
-      <div
-        style={{
-          fontSize: '0.7rem',
-          fontWeight: 600,
-          color: '#81858c',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          marginBottom: 8,
-        }}
-      >
-        节点面板
+    <div className="p-3">
+      {/* Agent 节点 */}
+      <div className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wide mb-2 flex items-center gap-1.5">
+        <span className="w-1 h-3 rounded-full bg-[#4f8cff]" /> Agent 节点
       </div>
-
-      {/* Agent nodes */}
       {AGENTS.map((agent) => (
         <div
           key={agent.name}
           draggable
           onDragStart={(e) => onDragStart(e, 'agent', agent.name)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 12px',
-            borderRadius: '10px',
-            border: '1px solid #e5e7eb',
-            background: '#fff',
-            cursor: 'grab',
-            marginBottom: 6,
-            fontSize: '0.82rem',
-            fontWeight: 500,
-            color: '#1d1d1f',
-            transition: 'box-shadow 0.15s, border-color 0.15s',
-            userSelect: 'none',
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLDivElement).style.boxShadow =
-              '0 2px 8px rgba(0,0,0,0.08)';
-            (e.currentTarget as HTMLDivElement).style.borderColor =
-              '#4f8cff';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-            (e.currentTarget as HTMLDivElement).style.borderColor = '#e5e7eb';
-          }}
+          className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#e5e7eb] bg-white cursor-grab mb-1.5 text-[0.78rem] font-medium text-[#1d1d1f] transition-shadow hover:shadow-sm hover:border-[#4f8cff] select-none"
         >
-          <span style={{ fontSize: '1.1rem' }}>{agent.icon}</span>
+          <span className="text-sm w-5 text-center">{agent.icon}</span>
           <span>{agent.name}</span>
         </div>
       ))}
 
-      {/* Divider */}
-      <div
-        style={{
-          borderTop: '1px solid #e5e7eb',
-          margin: '10px 0',
-        }}
-      />
-
-      {/* Router node */}
+      {/* 控制节点 */}
+      <div className="text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wide mb-2 mt-4 flex items-center gap-1.5">
+        <span className="w-1 h-3 rounded-full bg-[#f59e0b]" /> 控制节点
+      </div>
       <div
         draggable
         onDragStart={(e) => onDragStart(e, 'router')}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '8px 12px',
-          borderRadius: '10px',
-          border: '1px solid #f59e0b40',
-          background: '#fffbeb',
-          cursor: 'grab',
-          marginBottom: 6,
-          fontSize: '0.82rem',
-          fontWeight: 500,
-          color: '#f59e0b',
-          transition: 'box-shadow 0.15s, border-color 0.15s',
-          userSelect: 'none',
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow =
-            '0 2px 8px rgba(245,158,11,0.15)';
-          (e.currentTarget as HTMLDivElement).style.borderColor = '#f59e0b';
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-          (e.currentTarget as HTMLDivElement).style.borderColor =
-            '#f59e0b40';
-        }}
+        className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#f59e0b]/30 bg-[#fffbeb] cursor-grab mb-1.5 text-[0.78rem] font-medium text-[#b45309] transition-shadow hover:shadow-sm hover:border-[#f59e0b] select-none"
       >
-        <span style={{ fontSize: '1.1rem' }}>◇</span>
+        <span className="text-sm w-5 text-center">◇</span>
         <span>条件分支</span>
+      </div>
+
+      {/* 快捷键提示 */}
+      <div className="mt-4 pt-3 border-t border-[#eceef2]">
+        <p className="text-[9px] text-[#b0b8c1] leading-relaxed">
+          💡 拖拽节点到画布<br />
+          🔗 拖拽节点端口连线<br />
+          🗑️ Delete/Backspace 删除<br />
+          👆 双击路由器编辑条件
+        </p>
       </div>
     </div>
   );

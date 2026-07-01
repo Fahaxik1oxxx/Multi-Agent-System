@@ -9,32 +9,9 @@ import { avatarColor } from '@/lib/avatar';
 const TABS = [
   { id: 'account', label: '账号', icon: '🧑' },
   { id: 'model', label: '模型与映射', icon: '🤖' },
-  { id: 'agent-design', label: '智能体', icon: '🧠' },
 ];
 
 const ROLES = ['Planner', 'Retriever', 'Coder', 'Writer', 'Executor', 'Tester', 'Summarizer', 'Bot'];
-
-const AGENTS_DESIGN = [
-  { key: 'Planner', icon: '🧋', label: 'Planner', desc: '任务规划' },
-  { key: 'Retriever', icon: '🐍', label: 'Retriever', desc: '知识检索' },
-  { key: 'Coder', icon: '🫻', label: 'Coder', desc: '编写代码' },
-  { key: 'Writer', icon: '✍️', label: 'Writer', desc: '撰写文档' },
-  { key: 'Tester', icon: '✅', label: 'Tester', desc: 'QA审阅' },
-  { key: 'Summarizer', icon: '🧊', label: 'Summarizer', desc: '生成报告' },
-  { key: 'Bot', icon: '🤖', label: 'Bot', desc: '快捷问答' },
-  { key: 'Executor', icon: '⚙️', label: 'Executor', desc: '执行代码' },
-];
-
-const DEFAULT_PROMPTS: Record<string, string> = {
-  Planner: '你是高级项目经理。根据用户需求制定详细的执行计划。\n用编号列表列出执行步骤，每步含：目标、技术/工具、预期输出。\n最后一行必须是 \'task_type: coding\' 或 \'task_type: writing\' 或 \'task_type: analysis\'，表示任务类型。\n\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码片段」这一步，编译/运行由用户自行完成，task_type 标为 coding。\n如用户提问涉及最新资讯/实时信息/当前事件，首先使用 web_search 工具搜索获取最新数据。\n分析类任务（数据分析/CSV/Excel/统计/图表）→ task_type: analysis。',
-  Bot: '你是友好的 AI 助手。用简洁、自然的中文直接回答用户。\n闲聊时友善亲切；问答时准确清晰，不啰嗦。\n如果用户问及最新资讯、实时新闻、当前事件或你不确定的信息，使用 web_search 工具搜索后回答。\n如果是简单的编程问题（如「Hello World」「怎么写冒泡排序」），直接给出代码片段和简要说明，不要说「我帮你规划」之类的话。\n如果是知识性问题，直接给出准确简明的解释。\n绝对不要暴露任何内部角色名（Planner/Coder 等）。你就是普通助手。',
-  Retriever: '你是知识检索专家。你的**唯一职责**是从知识库中查找与任务相关的信息。\n使用 search_knowledge 工具查询知识库。\n\n铁律：\n- 你只能调用 search_knowledge，不得编写代码、不得写文件。\n- 如果搜索结果与当前任务完全不相关，必须明确回复「知识库中无相关内容，请使用自身知识完成任务」。\n- 如果找到相关信息，总结要点后交给下游角色处理。\n- 不要把检索结果原文全部贴出来——只贴最相关的 1-2 条摘要。',
-  Coder: '你是 Python 程序员（仅 Python）。你的核心职责是：**编写并执行代码**。\n\n1. 用 ```python ... ``` 代码块编写可直接执行的 Python 代码。\n2. 代码必须包含 print() 输出关键结果，用 assert 做验证。\n3. 如需要保存文件（图表/报告），使用 write_file 工具。\n4. 不要在代码块里写「建议」「如果」「可以」——给出确定的可执行代码。\n\n能力边界：你只能写 Python。如用户要 C/Java/Go 等语言，只提供代码片段 + 注释说明，末尾标注「需用户手动编译运行」。',
-  Writer: '你是专业文档撰写专家。根据 Planner 的计划和 Retriever 提供的资料撰写内容。\n使用 Markdown 格式输出，适当使用表格和列表。',
-  Executor: '你是代码执行专家。负责运行 Python 代码并返回执行结果。',
-  Tester: '你是高级 QA 评审工程师。审查下游输出是否满足用户的原始需求。\n\n核心原则：以「用户最初要什么」为标准，不以外观/格式为转移。\n对于代码：审查逻辑正确性、边界条件、实际可运行。\n对于报告/文章：审查内容是否真正回答了用户的问题。\n\n如果发现偏离用户原始需求，回复以 \'❌ 发现以下问题\' 开头。\n如果完全满足用户要求，回复以 \'✅ 评审全部通过\' 开头。',
-  Summarizer: '你是技术文档专家。汇总整个执行过程，生成简洁报告。\n\n原则：输出长度与任务体量成正比。\n简单任务（HelloWorld/示例）→ 2-3 段即可，不要过度结构化。\n复杂任务（完整项目/数据分析）→ 可用节/表/代码块详细展开。\n报告包含：任务概述、关键产出、评审结论。使用 Markdown。',
-};
 
 export function SettingsModal({ initialTab }: { initialTab?: string }) {
   const { user } = useAuthStore();
@@ -301,96 +278,6 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
           </div>
         )}
 
-        {/* ═══ 智能体设计 ═══ */}
-        {tab === 'agent-design' && <AgentDesignTab />}
-
-      </div>
-    </div>
-  );
-}
-
-/* ─── 智能体设计内嵌标签 ─── */
-const PROMPT_STORAGE_KEY = 'custom_prompts';
-
-function loadCustomPrompts(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY) || '{}'); } catch { return {}; }
-}
-
-function saveCustomPrompts(prompts: Record<string, string>) {
-  localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prompts));
-}
-
-function AgentDesignTab() {
-  const [selectedAgent, setSelectedAgent] = useState('Planner');
-  const [editPrompt, setEditPrompt] = useState('');
-
-  // 切换 Agent 时从 localStorage 加载已保存的自定义 Prompt
-  useEffect(() => {
-    const saved = loadCustomPrompts();
-    setEditPrompt(saved[selectedAgent] || '');
-  }, [selectedAgent]);
-
-  const hasCustom = editPrompt !== '';
-
-  const handleSave = () => {
-    const prompts = loadCustomPrompts();
-    if (editPrompt) {
-      prompts[selectedAgent] = editPrompt;
-    } else {
-      delete prompts[selectedAgent];
-    }
-    saveCustomPrompts(prompts);
-    toast.success(`「${selectedAgent}」Prompt 已保存`);
-  };
-
-  const handleReset = () => {
-    setEditPrompt('');
-    const prompts = loadCustomPrompts();
-    if (selectedAgent in prompts) {
-      delete prompts[selectedAgent];
-      saveCustomPrompts(prompts);
-    }
-    toast.success(`${selectedAgent} 已恢复默认`);
-  };
-
-  return (
-    <div className="flex flex-col h-full">
-      <h3 className="text-sm font-semibold text-[#1d1d1f] mb-3">自定义 System Prompt</h3>
-      {/* Agent 选择行 */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
-        {AGENTS_DESIGN.map(({ key, icon, label }) => (
-          <button key={key} onClick={() => setSelectedAgent(key)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-              selectedAgent === key
-                ? 'bg-[#4f8cff]/8 text-[#4f8cff] font-medium border border-[#4f8cff]/20'
-                : 'text-[#81858c] hover:bg-[#f3f4f6] border border-transparent'
-            }`}>
-            <span className="text-sm">{icon}</span>
-            <span>{label}</span>
-          </button>
-        ))}
-      </div>
-      {/* 提示编辑区 */}
-      <div className="flex-1 min-h-0">
-        <div className="flex items-center justify-between mb-1">
-          {hasCustom && (
-            <span className="text-[10px] text-[#4f8cff]">已自定义 · 清空并保存可恢复默认</span>
-          )}
-        </div>
-        <textarea
-          className="textarea textarea-bordered w-full font-mono text-xs leading-relaxed resize-none"
-          style={{ borderRadius: '10px', borderColor: '#e0e4e8', height: '280px' }}
-          value={editPrompt ?? ''}
-          onChange={(e) => setEditPrompt(e.target.value)}
-          placeholder={DEFAULT_PROMPTS[selectedAgent]}
-        />
-        <div className="flex justify-end gap-2 mt-2">
-          <button className="btn btn-ghost btn-xs" style={{ borderRadius: '8px' }} onClick={handleReset}>恢复默认</button>
-          <button className="btn btn-xs" onClick={handleSave}
-            style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>
-            保存
-          </button>
-        </div>
       </div>
     </div>
   );

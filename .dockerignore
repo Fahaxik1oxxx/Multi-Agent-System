@@ -1,0 +1,12 @@
+# Docker build context exclusions
+__pycache__/
+*.pyc
+data.db
+rag/chroma_db/
+rag/documents/
+reports/
+coding/*.pdf
+.env
+.git/
+frontend/node_modules/
+frontend/dist/

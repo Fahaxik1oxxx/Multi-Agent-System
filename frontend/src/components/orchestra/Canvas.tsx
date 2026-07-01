@@ -149,9 +149,13 @@ export function Canvas({ pipeline, onChange }: CanvasProps) {
     setRouterEdit(null);
   };
 
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   useEffect(() => {
-    onChange(syncToParent());
-  }, [nodes, edges, syncToParent, onChange]);
+    onChangeRef.current(syncToParent());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges]);
 
   return (
     <div
