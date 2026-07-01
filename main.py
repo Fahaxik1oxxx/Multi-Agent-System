@@ -94,6 +94,10 @@ from app.knowledge import router as knowledge_router
 
 app.include_router(knowledge_router, prefix="/api/knowledge", tags=["知识库"])
 
+from app.configs import router as configs_router
+
+app.include_router(configs_router, prefix="/api", tags=["配置"])
+
 from user.auth import decode_jwt
 from user.routes import auth_router, session_router, user_router
 
