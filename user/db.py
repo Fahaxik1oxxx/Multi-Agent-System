@@ -1086,11 +1086,7 @@ class Database:
             row = conn.execute("SELECT * FROM saved_configs WHERE id = ?", (config_id,)).fetchone()
             if not row:
                 return None
-            d = dict(row)
-            d["agents"] = json.loads(d.get("agents", "[]"))
-            d["pipeline"] = json.loads(d.get("pipeline", "{}"))
-            d["prompts"] = json.loads(d.get("prompts", "{}"))
-            return d
+            return self._parse_config_row(row)
 
     def list_configs(self, user_id: str, project_id: str = "") -> list[dict]:
         with self._conn() as conn:
