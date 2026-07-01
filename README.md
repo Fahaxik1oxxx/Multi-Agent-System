@@ -1,8 +1,8 @@
-# 多智能体协作系统 v3.6
+# 多智能体协作系统 v4.0
 
 <div align="center">
 
-**基于 LangGraph + LangChain 的七角色多智能体协作系统 + React V3 前端**
+**基于 LangGraph + LangChain 的七角色多智能体协作系统 + React V4 前端**
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
@@ -339,8 +339,8 @@ pytest tests/ -v
 | **v3.3** | **06-24** | **用户认证系统（bcrypt + Token），知识库/会话用户隔离，游客 sessionStorage** |
 | **v3.4** | **06-24** | **Docker 沙箱隔离，Token 7 天过期+续期，登录限流，安全防护升级至 10 层** |
 | **v3.5** | **06-26** | **FTS5 全文检索 + Schema 版本自动迁移 + WAL checkpoint + config.py 重构** |
-| **v3.3** | **06-24** | **用户认证系统（bcrypt + Token），知识库/会话用户隔离，游客 sessionStorage** |
-| **v3.4** | **06-24** | **Docker 沙箱隔离，Token 7 天过期+续期，登录限流，安全防护升级至 10 层** |
+| v3.6 | 06-30 | 工作空间/项目管理 + 组织架构 + 团队聊天 + SSE 推送 |
+| **v4.0** | **07-01** | **配置云端存储 + 公共模板市场 + 安全加固（登录锁定/CORS/审计）+ Agent 三态编排** |
 
 ---
 

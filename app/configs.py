@@ -152,7 +152,7 @@ async def export_config(request: Request, config_id: str, user: dict = Depends(r
         "pipeline": cfg.get("pipeline", {}),
         "prompts": cfg.get("prompts", {}),
         "exported_at": datetime.datetime.utcnow().isoformat() + "Z",
-        "source": "Multi-Agent System v3.6",
+        "source": "Multi-Agent System v4.0",
     }
     filename = f"config-{config_id[:8]}.json"
     return Response(

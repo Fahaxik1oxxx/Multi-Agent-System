@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
         logging.getLogger(__name__).warning("WAL checkpoint 执行失败，下次启动时 SQLite 将自动恢复", exc_info=True)
 
 
-app = FastAPI(title="多智能体协作系统", version="3.6", lifespan=lifespan)
+app = FastAPI(title="多智能体协作系统", version="4.0", lifespan=lifespan)
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -178,7 +178,7 @@ async def root():
 @app.get("/api/health", tags=["系统"])
 async def health():
     """健康检查"""
-    return JSONResponse({"status": "ok", "version": "3.6"})
+    return JSONResponse({"status": "ok", "version": "4.0"})
 
 
 @app.get("/scalar", include_in_schema=False)
