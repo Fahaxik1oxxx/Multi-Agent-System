@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { workspacesApi } from '@/api/workspaces';
 import { projectsApi, marketApi } from '@/api/projects';
-import type { Template } from '@/data/templates';
+import { type Template, TEMPLATES } from '@/data/templates';
 import { DEFAULT_PIPELINE } from '@/pages/project/OrchestrationPage';
 import { toast } from 'sonner';
 
@@ -14,13 +14,20 @@ export function TemplateMarket() {
   const [projectName, setProjectName] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const { data: templates, isLoading } = useQuery({
+  const { data: apiTemplates, isLoading } = useQuery({
     queryKey: ['market-templates'],
     queryFn: async () => {
       const res = await marketApi.list();
-      return res.data;
+      return (res.data || []) as Template[];
     },
   });
+
+  // 合并静态模板 + API 公共模板，去重
+  const templates = useMemo(() => {
+    const apiIds = new Set((apiTemplates || []).map((t: Template) => t.id));
+    const staticOnly = TEMPLATES.filter(t => !apiIds.has(t.id));
+    return [...(apiTemplates || []), ...staticOnly];
+  }, [apiTemplates]);
 
   const handleCopy = async (id: string) => {
     try {
@@ -60,14 +67,16 @@ export function TemplateMarket() {
       const projectId = projectRes.data.id;
 
       // 3. Update agent config with template presets
+      const keptNodes = DEFAULT_PIPELINE.nodes.filter(n => {
+        if (n.type === 'agent' && n.data.agent) {
+          return selectedTemplate.agents.includes(n.data.agent);
+        }
+        return true; // keep start + router nodes
+      });
+      const keptNodeIds = new Set(keptNodes.map(n => n.id));
       const newPipeline = {
-        nodes: DEFAULT_PIPELINE.nodes.filter(n => {
-          if (n.type === 'agent' && n.data.agent) {
-            return selectedTemplate.agents.includes(n.data.agent);
-          }
-          return true;
-        }),
-        edges: DEFAULT_PIPELINE.edges
+        nodes: keptNodes,
+        edges: DEFAULT_PIPELINE.edges.filter(e => keptNodeIds.has(e.source) && keptNodeIds.has(e.target)),
       };
       await projectsApi.updateAgentConfig(projectId, newPipeline);
 
