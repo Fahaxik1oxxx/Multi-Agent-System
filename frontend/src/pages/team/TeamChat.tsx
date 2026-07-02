@@ -400,6 +400,8 @@ export function TeamChat() {
                 }`}
                 onClick={() => {
                   if (activeChannel !== ch.id) {
+                    const n = unreadCounts[ch.id] || 0;
+                    setNewMsgCount(n);
                     setActiveChannel(ch.id);
                     setUnreadCounts((prev) => ({ ...prev, [ch.id]: 0 }));
                     localStorage.setItem(`v3_last_channel_${orgId}`, ch.id);

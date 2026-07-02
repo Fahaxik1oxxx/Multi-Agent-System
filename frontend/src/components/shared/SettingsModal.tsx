@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi } from '@/api/user';
 import { useAuthStore } from '@/stores/authStore';
-import { Eye, EyeOff, Save, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { avatarColor } from '@/lib/avatar';
 
@@ -25,8 +25,6 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
   const [editBio, setEditBio] = useState('');
 
   // ── 模型 ──
-  const [apiKey, setApiKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
   const [customForm, setCustomForm] = useState({ key: '', model: '', base_url: '', api_key: '' });
   const [showForm, setShowForm] = useState(false);
 
@@ -45,11 +43,6 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
     },
   });
 
-  const { data: keyStatus } = useQuery({
-    queryKey: ['api-key-status'],
-    queryFn: async () => { const res = await userApi.getApiKeyStatus(); return res.data; },
-  });
-
   const { data: config } = useQuery({
     queryKey: ['user-config'],
     queryFn: async () => { const res = await userApi.getConfig(); return res.data; },
@@ -57,7 +50,9 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
 
   useEffect(() => { if (config?.roles) setRoleModels({ ...config.roles }); }, [config?.roles]);
 
-  const systemModels = Array.isArray(config?.system_models) ? config.system_models : [];
+  const systemModels = config?.system_models
+    ? Object.entries(config.system_models).map(([key, val]: [string, any]) => ({ key, model: val.model, base_url: val.base_url }))
+    : [];
   const customModels = Array.isArray(config?.models) ? config.models : [];
   const modelKeys = systemModels.map((m: any) => m.key).filter(Boolean);
   const customKeys = customModels.map((m: any) => m.key).filter(Boolean);
@@ -85,15 +80,16 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
     },
   });
 
-  const saveKeyMutation = useMutation({
-    mutationFn: async (key: string) => { await userApi.saveApiKey(key); },
-    onSuccess: () => { toast.success('API Key 已保存'); setApiKey(''); },
-    onError: (err: unknown) => toast.error((err as any)?.response?.data?.error || '保存失败'),
-  });
-
-  const deleteKeyMutation = useMutation({
-    mutationFn: () => userApi.deleteApiKey(),
-    onSuccess: () => toast.success('已恢复系统默认'),
+  const saveRolesMutation = useMutation({
+    mutationFn: async () => {
+      await userApi.saveConfig({ roles: roleModels });
+    },
+    onSuccess: () => {
+      toast.success('角色映射已保存');
+      queryClient.invalidateQueries({ queryKey: ['user-config'] });
+    },
+    onError: (err: unknown) =>
+      toast.error((err as any)?.response?.data?.error || '保存失败'),
   });
 
   return (
@@ -172,46 +168,23 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
         {/* ═══ 模型（系统模型 + API Key + 自定义模型）═══ */}
         {tab === 'model' && (
           <div className="space-y-5">
-            {/* 系统默认模型 */}
+            {/* 系统模型（只读） */}
             <div>
-              <h3 className="text-sm font-semibold text-[#1d1d1f] mb-2">系统默认模型</h3>
-              {systemModels.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2 bg-[#f9fafb] rounded-lg">
-                    <div className="text-[9px] text-[#81858c]">模型</div>
-                    <div className="text-xs font-medium text-[#1d1d1f]">{systemModels[0]?.model || '—'}</div>
+              <h3 className="text-sm font-semibold text-[#1d1d1f] mb-2">
+                系统模型
+                <span className="text-[10px] text-[#81858c] font-normal ml-2">只读，由服务端配置</span>
+              </h3>
+              <div className="grid gap-2">
+                {systemModels.length > 0 ? systemModels.map((m: any) => (
+                  <div key={m.key} className="p-3 bg-[#f5f6f8] rounded-xl border border-[#e8ebef]">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="badge badge-xs bg-[#e0e4e8] text-[#5f636b] border-0 font-mono">{m.key}</span>
+                      <span className="text-xs font-medium text-[#1d1d1f]">{m.model}</span>
+                    </div>
+                    <div className="text-[10px] text-[#81858c] truncate">{m.base_url}</div>
                   </div>
-                  <div className="p-2 bg-[#f9fafb] rounded-lg">
-                    <div className="text-[9px] text-[#81858c]">接口</div>
-                    <div className="text-xs font-medium text-[#1d1d1f] truncate">{systemModels[0]?.base_url || '—'}</div>
-                  </div>
-                </div>
-              ) : <p className="text-xs text-[#b0b8c1]">加载中...</p>}
-            </div>
-
-            {/* API Key */}
-            <div>
-              <h3 className="text-sm font-semibold text-[#1d1d1f] mb-2">API Key</h3>
-              <p className="text-[10px] text-[#81858c] mb-2">
-                {keyStatus?.has_custom_key
-                  ? <span className="badge badge-primary badge-xs">使用自定义 Key</span>
-                  : <span className="badge badge-ghost badge-xs">系统默认</span>}
-              </p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input type={showKey ? 'text' : 'password'} className="input input-bordered w-full pr-8 text-xs" style={{ borderRadius: '8px', borderColor: '#e0e4e8' }}
-                    value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="sk-..." />
-                  <button onClick={() => setShowKey(!showKey)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#9ca3af]">
-                    {showKey ? <EyeOff size={14} /> : <Eye size={14} />}</button>
-                </div>
-                <button className="btn btn-xs" disabled={!apiKey.trim() || saveKeyMutation.isPending} onClick={() => saveKeyMutation.mutate(apiKey)}
-                  style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>保存</button>
+                )) : <p className="text-xs text-[#b0b8c1]">加载中...</p>}
               </div>
-              {keyStatus?.has_custom_key && (
-                <button className="btn btn-xs btn-ghost text-[#ef4444] mt-2" onClick={() => deleteKeyMutation.mutate()}>
-                  <Trash2 size={12} /> 删除自定义 Key
-                </button>
-              )}
             </div>
 
             {/* 自定义模型 */}
@@ -236,21 +209,27 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
                   </div>
                   <button className="btn btn-xs" disabled={!customForm.key || !customForm.model || !customForm.api_key}
                     onClick={() => {
-                      userApi.addCustomModel(customForm).then(() => { toast.success('已添加'); setCustomForm({ key: '', model: '', base_url: '', api_key: '' }); setShowForm(false); })
+                      userApi.addCustomModel(customForm).then(() => { toast.success('已添加'); setCustomForm({ key: '', model: '', base_url: '', api_key: '' }); setShowForm(false); queryClient.invalidateQueries({ queryKey: ['user-config'] }); })
                         .catch((err: any) => toast.error(err?.response?.data?.error || '添加失败'));
                     }}
                     style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '6px', border: 'none' }}>添加</button>
                 </div>
               )}
               {customModels.length > 0 && (
-                <div className="space-y-1">
+                <div className="grid gap-2">
                   {customModels.map((m: any) => (
-                    <div key={m.key} className="flex items-center gap-2 text-xs p-2 bg-[#f9fafb] rounded-lg">
-                      <span className="font-medium text-[#1d1d1f] w-16 truncate">{m.key}</span>
-                      <span className="text-[#81858c] truncate flex-1">{m.model}</span>
-                      <button className="text-[#ef4444]" onClick={() => userApi.deleteCustomModel(m.key).then(() => toast.success('已删除')).catch(() => toast.error('删除失败'))}>
-                        <Trash2 size={12} />
-                      </button>
+                    <div key={m.key} className="p-3 bg-white rounded-xl border border-[#e8ebef] shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="badge badge-xs bg-[#e8f0ff] text-[#4f8cff] border-0 font-mono shrink-0">{m.key}</span>
+                          <span className="text-xs font-medium text-[#1d1d1f] truncate">{m.model}</span>
+                        </div>
+                        <button className="text-[#c0c4cc] hover:text-[#ef4444] shrink-0 ml-2 transition-colors"
+                          onClick={() => userApi.deleteCustomModel(m.key).then(() => { toast.success('已删除'); queryClient.invalidateQueries({ queryKey: ['user-config'] }); }).catch(() => toast.error('删除失败'))}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-[#81858c] truncate">{m.base_url}</div>
                     </div>
                   ))}
                 </div>
@@ -268,11 +247,15 @@ export function SettingsModal({ initialTab }: { initialTab?: string }) {
                     <select className="select select-bordered select-xs w-full text-xs" style={{ borderRadius: '6px', borderColor: '#e0e4e8' }}
                       value={roleModels[role] || (config?.roles?.[role] || '')}
                       onChange={e => setRoleModels(p => ({ ...p, [role]: e.target.value }))}>
-                      <option value="">系统默认</option>
                       {allModels.map((mk: string) => <option key={mk} value={mk}>{mk}</option>)}
                     </select>
                   </div>
                 ))}
+                <button className="btn btn-xs mt-2" disabled={saveRolesMutation.isPending}
+                  onClick={() => saveRolesMutation.mutate()}
+                  style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '6px', border: 'none' }}>
+                  {saveRolesMutation.isPending ? '保存中...' : '保存映射'}
+                </button>
               </div>
             </div>
           </div>

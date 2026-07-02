@@ -80,18 +80,29 @@ export function TemplateMarket() {
       const projectId = projectRes.data.id;
 
       // 3. Update agent config with template presets
-      const keptNodes = DEFAULT_PIPELINE.nodes.filter(n => {
-        if (n.type === 'agent' && n.data.agent) {
-          return selectedTemplate.agents.includes(n.data.agent);
-        }
-        return true; // keep start + router nodes
-      });
-      const keptNodeIds = new Set(keptNodes.map(n => n.id));
-      const newPipeline = {
-        nodes: keptNodes,
-        edges: DEFAULT_PIPELINE.edges.filter(e => keptNodeIds.has(e.source) && keptNodeIds.has(e.target)),
-      };
-      await projectsApi.updateAgentConfig(projectId, newPipeline);
+      const templateAny = selectedTemplate as any;
+      const hasCustomPipeline = templateAny.pipeline?.nodes?.length > 0;
+      let pipelineToApply: any;
+      if (hasCustomPipeline) {
+        pipelineToApply = templateAny.pipeline;
+      } else {
+        const keptNodes = DEFAULT_PIPELINE.nodes.filter(n => {
+          if (n.type === 'agent' && n.data.agent) {
+            return selectedTemplate.agents.includes(n.data.agent);
+          }
+          return true;
+        });
+        const keptNodeIds = new Set(keptNodes.map(n => n.id));
+        pipelineToApply = {
+          nodes: keptNodes,
+          edges: DEFAULT_PIPELINE.edges.filter(e => keptNodeIds.has(e.source) && keptNodeIds.has(e.target)),
+        };
+      }
+      const agentPayload: any = { pipeline: pipelineToApply };
+      if (templateAny.prompts) {
+        agentPayload.prompts = templateAny.prompts;
+      }
+      await projectsApi.updateAgentConfig(projectId, agentPayload);
 
       toast.success('项目创建成功');
       dialogRef.current?.close();

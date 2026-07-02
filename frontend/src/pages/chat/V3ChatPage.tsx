@@ -742,6 +742,12 @@ export function V3ChatPage() {
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full text-[#81858c] hover:bg-[#f0f4ff] hover:text-[#4f8cff] transition-colors" title="上传文件(PDF/TXT/PNG/JPG)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                     </button>
+                    <button type="button" onClick={() => setWebSearchEnabled(v => !v)}
+                      className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full transition-colors ${webSearchEnabled ? 'bg-[#e0f0ff] text-[#4f8cff]' : 'text-[#81858c] hover:bg-[#f0f4ff] hover:text-[#4f8cff]'}`}
+                      title={webSearchEnabled ? '联网搜索已开启' : '联网搜索已关闭'}>
+                      <Globe size={14} />
+                      <span>联网</span>
+                    </button>
                     <div className="w-px h-4 bg-[#e0e4e8]" />
                     {(['auto', 'fast', 'slow'] as const).map(m => (
                       <span key={m} className={`text-xs px-3 py-1.5 rounded-full cursor-pointer select-none transition-colors ${laneMode === m ? 'bg-[#4f8cff] text-white' : 'bg-[#f0f4ff] text-[#81858c] hover:bg-[#e0e8ff]'}`}
@@ -826,6 +832,12 @@ export function V3ChatPage() {
                   <div className="flex items-center gap-1.5">
                     <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full text-[#81858c] hover:bg-[#f0f4ff] hover:text-[#4f8cff] transition-colors" title="上传文件(PDF/TXT/PNG/JPG)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    </button>
+                    <button type="button" onClick={() => setWebSearchEnabled(v => !v)}
+                      className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full transition-colors ${webSearchEnabled ? 'bg-[#e0f0ff] text-[#4f8cff]' : 'text-[#81858c] hover:bg-[#f0f4ff] hover:text-[#4f8cff]'}`}
+                      title={webSearchEnabled ? '联网搜索已开启' : '联网搜索已关闭'}>
+                      <Globe size={14} />
+                      <span>联网</span>
                     </button>
                     <div className="w-px h-4 bg-[#e0e4e8]" />
                     {(['auto', 'fast', 'slow'] as const).map(m => (

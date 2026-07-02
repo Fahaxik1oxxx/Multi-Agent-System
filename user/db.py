@@ -4,6 +4,7 @@ users / sessions / user_configs 三张表。
 """
 
 import base64
+import datetime
 import hashlib
 import json
 import os
@@ -942,10 +943,11 @@ class Database:
 
     def create_message(self, channel_id: str, user_id: str, content: str, is_agent: int = 0) -> str:
         mid = str(uuid.uuid4())
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         with self._conn() as conn:
             conn.execute(
-                "INSERT INTO org_messages (id, channel_id, user_id, content, is_agent) VALUES (?,?,?,?,?)",
-                (mid, channel_id, user_id, content, is_agent),
+                "INSERT INTO org_messages (id, channel_id, user_id, content, is_agent, created_at) VALUES (?,?,?,?,?,?)",
+                (mid, channel_id, user_id, content, is_agent, now),
             )
         return mid
 
@@ -957,7 +959,7 @@ class Database:
                     SELECT m.*, u.name as user_name
                     FROM org_messages m JOIN users u ON m.user_id = u.id
                     WHERE m.channel_id = ? AND m.created_at < ?
-                    ORDER BY m.created_at DESC LIMIT ?
+                    ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
                 """,
                     (channel_id, before, limit),
                 ).fetchall()
@@ -967,7 +969,7 @@ class Database:
                     SELECT m.*, u.name as user_name
                     FROM org_messages m JOIN users u ON m.user_id = u.id
                     WHERE m.channel_id = ?
-                    ORDER BY m.created_at DESC LIMIT ?
+                    ORDER BY m.created_at DESC, m.rowid DESC LIMIT ?
                 """,
                     (channel_id, limit),
                 ).fetchall()

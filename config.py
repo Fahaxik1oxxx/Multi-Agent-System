@@ -32,6 +32,11 @@ MODEL_POOL: dict[str, dict[str, Any]] = {
         "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
         "base_url": "https://api.deepseek.com/v1",
     },
+    "a-ollama-qwen2.5": {
+        "model": "qwen2.5:7b",
+        "api_key": "ollama",
+        "base_url": "http://localhost:11434/v1",
+    },
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -67,6 +72,22 @@ def _resolve_model(role: str) -> dict[str, Any]:
 
 def get_model_config(role: str) -> dict[str, Any]:
     """返回角色对应的模型原始配置 {model, api_key, base_url}（推荐使用）"""
+    return _resolve_model(role)
+
+
+def get_model_config_for_user(role: str, user_config: dict | None) -> dict[str, Any]:
+    """解析角色模型配置：优先用户自定义模型，再查系统模型池，最后回退。"""
+    if not user_config:
+        return _resolve_model(role)
+    roles = user_config.get("roles", {})
+    models = user_config.get("models", [])
+    model_key = roles.get(role)
+    if model_key:
+        for m in models:
+            if m["key"] == model_key:
+                return {"model": m["model"], "api_key": m["api_key"], "base_url": m["base_url"]}
+        if model_key in MODEL_POOL:
+            return dict(MODEL_POOL[model_key])
     return _resolve_model(role)
 
 

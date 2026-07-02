@@ -28,15 +28,15 @@
 
 ### 🤖 七大专业 Agent
 
-| Agent | 角色 | 能力 |
-|:-----:|------|------|
-| 📋 **Planner** | 规划师 | 拆解复杂任务为可执行步骤清单 |
-| 🤖 **Bot** | 快车道接待 | 轻任务秒级直接回复 |
-| 🔍 **Retriever** | 检索员 | 查询 ChromaDB 知识库获取背景信息 |
-| 💻 **Coder** | 程序员 | Python 代码编写 + 数据分析 + 图表生成 |
-| ✍️ **Writer** | 撰稿人 | 报告/方案/文章撰写，支持引用知识库 |
-| ✅ **Tester** | 审查员 | 代码质量评审 + 文档内容检查 |
-| 📊 **Summarizer** | 汇总师 | 汇总全流程，输出结构化 Markdown 报告 |
+|       Agent       | 角色       | 能力                                  |
+| :---------------: | ---------- | ------------------------------------- |
+|  📋 **Planner**   | 规划师     | 拆解复杂任务为可执行步骤清单          |
+|    🤖 **Bot**     | 快车道接待 | 轻任务秒级直接回复                    |
+| 🔍 **Retriever**  | 检索员     | 查询 ChromaDB 知识库获取背景信息      |
+|   💻 **Coder**    | 程序员     | Python 代码编写 + 数据分析 + 图表生成 |
+|   ✍️ **Writer**   | 撰稿人     | 报告/方案/文章撰写，支持引用知识库    |
+|   ✅ **Tester**   | 审查员     | 代码质量评审 + 文档内容检查           |
+| 📊 **Summarizer** | 汇总师     | 汇总全流程，输出结构化 Markdown 报告  |
 
 ### 🧠 智能任务调度
 
@@ -48,14 +48,14 @@
 
 ### 🔧 工具链
 
-| 工具 | 功能 |
-|------|------|
-| `search_knowledge` | ChromaDB 向量语义检索 |
-| `read_file` / `write_file` | 文件读写 |
-| `calculate` | AST 安全数学表达式计算 |
-| `analyze_data` | Pandas 数据分析（CSV/Excel） |
-| `visualize_data` | Pillow 图表生成（柱状图/折线图） |
-| `ocr_image` | Tesseract 中英文图片 OCR |
+| 工具                       | 功能                             |
+| -------------------------- | -------------------------------- |
+| `search_knowledge`         | ChromaDB 向量语义检索            |
+| `read_file` / `write_file` | 文件读写                         |
+| `calculate`                | AST 安全数学表达式计算           |
+| `analyze_data`             | Pandas 数据分析（CSV/Excel）     |
+| `visualize_data`           | Pillow 图表生成（柱状图/折线图） |
+| `ocr_image`                | Tesseract 中英文图片 OCR         |
 
 ### 👤 用户隔离与认证系统
 
@@ -69,14 +69,14 @@
 
 ### 🛡️ 安全防护
 
-| 防护层 | 实现方式 |
-|--------|----------|
-| Docker 沙箱 | 代码执行在 Docker 容器中隔离运行，替代 subprocess |
-| 密码哈希 | bcrypt + 随机盐，恒时比较防时序攻击 |
-| 登录限流 | 5 次失败 / 15 分钟锁定，防暴力破解 |
-| SQL 注入防护 | 100% 参数化查询，无字符串拼接 |
-| 路径遍历防护 | `os.path.basename()` 消毒文件名 |
-| Docker 降级 | Docker 不可用时自动降级为 subprocess，系统不中断 |
+| 防护层       | 实现方式                                          |
+| ------------ | ------------------------------------------------- |
+| Docker 沙箱  | 代码执行在 Docker 容器中隔离运行，替代 subprocess |
+| 密码哈希     | bcrypt + 随机盐，恒时比较防时序攻击               |
+| 登录限流     | 5 次失败 / 15 分钟锁定，防暴力破解                |
+| SQL 注入防护 | 100% 参数化查询，无字符串拼接                     |
+| 路径遍历防护 | `os.path.basename()` 消毒文件名                   |
+| Docker 降级  | Docker 不可用时自动降级为 subprocess，系统不中断  |
 
 ---
 
@@ -110,7 +110,7 @@ DEEPSEEK_API_KEY=你的DeepSeek-API-Key
 
 ```bash
 # 后端
-uvicorn main:app --reload --port 8501
+uvicorn main:app --reload --port 8000
 
 # 前端（新终端）
 cd frontend
@@ -157,14 +157,14 @@ npx vite --host
 
 ### 慢车道流水线详解
 
-| 步骤 | Agent | 动作 |
-|:----:|-------|------|
-| 1 | 📋 Planner | 拆解任务为步骤清单 |
-| 2 | 🔍 Retriever | 从 ChromaDB 知识库检索相关资料 |
-| 3 | 💻/✍️ Coder/Writer | 根据任务类型编写代码或撰写文稿 |
-| 4 | ⚙️ Executor | subprocess 沙箱执行代码 |
-| 5 | ✅ Tester | 评审代码/文档质量，输出 ✅ 或 ❌ |
-| 6 | 📊 Summarizer | 汇总全流程，生成结构化报告 |
+| 步骤 | Agent              | 动作                             |
+| :--: | ------------------ | -------------------------------- |
+|  1   | 📋 Planner         | 拆解任务为步骤清单               |
+|  2   | 🔍 Retriever       | 从 ChromaDB 知识库检索相关资料   |
+|  3   | 💻/✍️ Coder/Writer | 根据任务类型编写代码或撰写文稿   |
+|  4   | ⚙️ Executor        | subprocess 沙箱执行代码          |
+|  5   | ✅ Tester          | 评审代码/文档质量，输出 ✅ 或 ❌ |
+|  6   | 📊 Summarizer      | 汇总全流程，生成结构化报告       |
 
 ### 用户认证架构
 
@@ -258,50 +258,50 @@ Multi-Agent-System/
 ## 🌐 API 接口
 
 ### 聊天与报告
-*
-| 方法 | 路径 | 鉴权 | 说明 |
-|------|------|:----:|------|
-| `GET` | `/` | 无 | 聊天页面 |
-| `POST` | `/api/chat` | 无 | 发送消息 |
-| `POST` | `/api/report` | 无 | 生成 Markdown 报告 |
+
+- | 方法   | 路径          | 鉴权 | 说明               |
+  | ------ | ------------- | :--: | ------------------ |
+  | `GET`  | `/`           |  无  | 聊天页面           |
+  | `POST` | `/api/chat`   |  无  | 发送消息           |
+  | `POST` | `/api/report` |  无  | 生成 Markdown 报告 |
 
 ### 认证系统
 
-| 方法 | 路径 | 鉴权 | 说明 |
-|------|------|:----:|------|
-| `POST` | `/api/auth/register` | 无 | 注册 → 返回 Token |
-| `POST` | `/api/auth/login` | 无 | 登录 → 返回 Token |
-| `POST` | `/api/auth/logout` | 需 | 退出 → 删除 Token |
-| `GET` | `/api/auth/me` | 需 | 获取当前用户信息 |
+| 方法   | 路径                 | 鉴权 | 说明              |
+| ------ | -------------------- | :--: | ----------------- |
+| `POST` | `/api/auth/register` |  无  | 注册 → 返回 Token |
+| `POST` | `/api/auth/login`    |  无  | 登录 → 返回 Token |
+| `POST` | `/api/auth/logout`   |  需  | 退出 → 删除 Token |
+| `GET`  | `/api/auth/me`       |  需  | 获取当前用户信息  |
 
 ### 知识库管理（需 Token）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/knowledge/stats` | 文档数 + 切片数统计 |
-| `POST` | `/api/knowledge/rebuild` | 重建索引 |
-| `POST` | `/api/knowledge/upload` | 上传文档（PDF/TXT/PNG/JPG） |
-| `DELETE` | `/api/knowledge/{filename}` | 删除文档 |
+| 方法     | 路径                        | 说明                        |
+| -------- | --------------------------- | --------------------------- |
+| `GET`    | `/api/knowledge/stats`      | 文档数 + 切片数统计         |
+| `POST`   | `/api/knowledge/rebuild`    | 重建索引                    |
+| `POST`   | `/api/knowledge/upload`     | 上传文档（PDF/TXT/PNG/JPG） |
+| `DELETE` | `/api/knowledge/{filename}` | 删除文档                    |
 
 ### 会话管理（需 Token）
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/sessions` | 列出用户会话 |
-| `GET` | `/api/sessions/search?q=xxx` | **全文检索会话消息**（FTS5，带高亮片段） |
-| `POST` | `/api/sessions` | 保存/创建会话 |
-| `GET` | `/api/sessions/{id}` | 获取会话（校验归属） |
-| `DELETE` | `/api/sessions/{id}` | 删除会话（校验归属） |
+| 方法     | 路径                         | 说明                                     |
+| -------- | ---------------------------- | ---------------------------------------- |
+| `GET`    | `/api/sessions`              | 列出用户会话                             |
+| `GET`    | `/api/sessions/search?q=xxx` | **全文检索会话消息**（FTS5，带高亮片段） |
+| `POST`   | `/api/sessions`              | 保存/创建会话                            |
+| `GET`    | `/api/sessions/{id}`         | 获取会话（校验归属）                     |
+| `DELETE` | `/api/sessions/{id}`         | 删除会话（校验归属）                     |
 
 ### 配置管理
 
-| 方法 | 路径 | 鉴权 | 说明 |
-|------|------|:----:|------|
-| `GET` | `/api/auth/system-config` | 无 | 系统默认模型配置 |
-| `GET` | `/api/user/config` | 需 | 获取用户角色映射 |
-| `PUT` | `/api/user/config` | 需 | 保存用户角色映射 |
-| `POST` | `/api/user/custom-models` | 需 | 添加自定义模型 |
-| `DELETE` | `/api/user/custom-models/{key}` | 需 | 删除自定义模型 |
+| 方法     | 路径                            | 鉴权 | 说明             |
+| -------- | ------------------------------- | :--: | ---------------- |
+| `GET`    | `/api/auth/system-config`       |  无  | 系统默认模型配置 |
+| `GET`    | `/api/user/config`              |  需  | 获取用户角色映射 |
+| `PUT`    | `/api/user/config`              |  需  | 保存用户角色映射 |
+| `POST`   | `/api/user/custom-models`       |  需  | 添加自定义模型   |
+| `DELETE` | `/api/user/custom-models/{key}` |  需  | 删除自定义模型   |
 
 ---
 
@@ -314,11 +314,13 @@ pytest tests/ -v
 26 个测试用例覆盖认证 + 知识库 + FTS5 全文检索 + 迁移：
 
 **认证 & 知识库 (9):**
+
 - ✅ 用户注册 / 登录 / Token 获取
 - ✅ 知识库统计 / 索引重建 / 文件上传 / 非法类型拦截
 - ✅ 文档删除 / 删除不存在的文档
 
 **FTS5 全文检索 & 迁移 (17):**
+
 - ✅ Schema 版本管理（空白库 → v2 / 版本超前拒绝 / 幂等）
 - ✅ FTS5 同步（创建 / 更新 / 删除 / 空消息过滤 / 回填）
 - ✅ 全文搜索（中文匹配 / 高亮片段 / 用户隔离 / 特殊字符 / 空查询 / API 端点 / 鉴权）
@@ -328,39 +330,39 @@ pytest tests/ -v
 
 ## 📊 版本历史
 
-| 版本 | 日期 | 关键变化 |
-|------|------|---------|
-| v1.0 | 06-11 | 4 Agent AG2，仅编程任务，控制台交互 |
-| v2.0 | 06-14 | 8 Agent + Router，Streamlit 前端，ChromaDB RAG |
-| v2.1 | 06-17 | UI/UX 优化，非 Python 语言拦截，90s 软超时 |
-| v3.0 | 06-22 | AG2 → LangGraph 迁移，Tesseract OCR，手动快慢车道 |
-| v3.1 | 06-23 | Streamlit → FastAPI Web，Router 恢复，5 任务类型，exitcode 分支 |
-| v3.2 | 06-24 | daisyUI 前端重构，SQLite 用户/会话持久化，lifespan 启动 |
-| **v3.3** | **06-24** | **用户认证系统（bcrypt + Token），知识库/会话用户隔离，游客 sessionStorage** |
-| **v3.4** | **06-24** | **Docker 沙箱隔离，Token 7 天过期+续期，登录限流，安全防护升级至 10 层** |
-| **v3.5** | **06-26** | **FTS5 全文检索 + Schema 版本自动迁移 + WAL checkpoint + config.py 重构** |
-| v3.6 | 06-30 | 工作空间/项目管理 + 组织架构 + 团队聊天 + SSE 推送 |
+| 版本     | 日期      | 关键变化                                                                         |
+| -------- | --------- | -------------------------------------------------------------------------------- |
+| v1.0     | 06-11     | 4 Agent AG2，仅编程任务，控制台交互                                              |
+| v2.0     | 06-14     | 8 Agent + Router，Streamlit 前端，ChromaDB RAG                                   |
+| v2.1     | 06-17     | UI/UX 优化，非 Python 语言拦截，90s 软超时                                       |
+| v3.0     | 06-22     | AG2 → LangGraph 迁移，Tesseract OCR，手动快慢车道                                |
+| v3.1     | 06-23     | Streamlit → FastAPI Web，Router 恢复，5 任务类型，exitcode 分支                  |
+| v3.2     | 06-24     | daisyUI 前端重构，SQLite 用户/会话持久化，lifespan 启动                          |
+| **v3.3** | **06-24** | **用户认证系统（bcrypt + Token），知识库/会话用户隔离，游客 sessionStorage**     |
+| **v3.4** | **06-24** | **Docker 沙箱隔离，Token 7 天过期+续期，登录限流，安全防护升级至 10 层**         |
+| **v3.5** | **06-26** | **FTS5 全文检索 + Schema 版本自动迁移 + WAL checkpoint + config.py 重构**        |
+| v3.6     | 06-30     | 工作空间/项目管理 + 组织架构 + 团队聊天 + SSE 推送                               |
 | **v4.0** | **07-01** | **配置云端存储 + 公共模板市场 + 安全加固（登录锁定/CORS/审计）+ Agent 三态编排** |
 
 ---
 
 ## 🛠️ 技术栈
 
-| 领域 | 技术 |
-|------|------|
-| Agent 编排 | LangGraph ≥0.2（StateGraph + 条件路由） |
-| Agent 实现 | LangChain ≥0.3（ChatDeepSeek + @tool） |
-| 大语言模型 | DeepSeek V4 Flash |
-| Web 框架 | FastAPI ≥0.115 + Jinja2 ≥3.1 |
-| CSS 框架 | daisyUI 5 + Tailwind CSS 4 |
-| 前端交互 | 原生 JavaScript（fetch + DOM） |
-| 数据库 | SQLite（WAL 模式 + FTS5 全文索引 + Schema 版本自动迁移） |
-| 密码哈希 | bcrypt ≥4.0 |
-| 容器沙箱 | Docker |
-| 向量数据库 | ChromaDB ≥1.5 |
-| 嵌入模型 | BAAI/bge-small-zh-v1.5（33MB，离线加载） |
-| OCR | Tesseract + Pillow |
-| 测试 | pytest + FastAPI TestClient |
+| 领域       | 技术                                                     |
+| ---------- | -------------------------------------------------------- |
+| Agent 编排 | LangGraph ≥0.2（StateGraph + 条件路由）                  |
+| Agent 实现 | LangChain ≥0.3（ChatDeepSeek + @tool）                   |
+| 大语言模型 | DeepSeek V4 Flash                                        |
+| Web 框架   | FastAPI ≥0.115 + Jinja2 ≥3.1                             |
+| CSS 框架   | daisyUI 5 + Tailwind CSS 4                               |
+| 前端交互   | 原生 JavaScript（fetch + DOM）                           |
+| 数据库     | SQLite（WAL 模式 + FTS5 全文索引 + Schema 版本自动迁移） |
+| 密码哈希   | bcrypt ≥4.0                                              |
+| 容器沙箱   | Docker                                                   |
+| 向量数据库 | ChromaDB ≥1.5                                            |
+| 嵌入模型   | BAAI/bge-small-zh-v1.5（33MB，离线加载）                 |
+| OCR        | Tesseract + Pillow                                       |
+| 测试       | pytest + FastAPI TestClient                              |
 
 ---
 
@@ -370,4 +372,4 @@ MIT License
 
 ---
 
-*西北农林科技大学 · 2026 人工智能实训 · 独立拓展项目*
+_西北农林科技大学 · 2026 人工智能实训 · 独立拓展项目_

@@ -22,21 +22,15 @@ export const projectsApi = {
     if (Array.isArray(data)) {
       return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { enabled_agents: data });
     }
-    if (data && 'agent_states' in data) {
-      const payload: any = { agent_states: data.agent_states };
-      if (data.pipeline) {
-        payload.pipeline = data.pipeline;
-      }
-      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
+    const payload: any = {};
+    if (data.agent_states) payload.agent_states = data.agent_states;
+    if (data.enabled_agents) payload.enabled_agents = data.enabled_agents;
+    if (data.pipeline) payload.pipeline = data.pipeline;
+    if (data.prompts) payload.prompts = data.prompts;
+    if (Object.keys(payload).length === 0) {
+      payload.pipeline = data;
     }
-    if (data && 'enabled_agents' in data) {
-      const payload: any = { enabled_agents: data.enabled_agents };
-      if (data.pipeline) {
-        payload.pipeline = data.pipeline;
-      }
-      return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
-    }
-    return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, { pipeline: data });
+    return apiClient.put<{ status: string }>(`/projects/${projectId}/agent-config`, payload);
   },
 };
 

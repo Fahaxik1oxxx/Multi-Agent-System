@@ -39,6 +39,17 @@ async def chat_start(
     user: dict = Depends(require_auth),
 ):
     session_id = body.session_id or str(uuid.uuid4())
+    
+    existing = sessions.get(session_id)
+    if existing and existing.awaiting_clarification:
+        # 澄清回复 → 走继续分支
+        thread = threading.Thread(
+            target=run_workflow_streaming,
+            args=(body.model_dump(), existing),
+            daemon=True,
+        )
+        thread.start()
+        return JSONResponse({"session_id": session_id})
 
     state = SessionState(
         queue=asyncio.Queue(),

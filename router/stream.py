@@ -16,7 +16,7 @@ if _PROJECT_DIR not in sys.path:
 
 from router.stream_state import SessionState, push, push_done, _DONE
 from router.stream_graph import build_stream_workflow, StreamWorkflowState
-from router.classify import classify
+from router.classify import classify_with_embedding, generate_clarification, reclassify_with_context
 
 sessions: dict[str, "SessionState"] = {}
 
@@ -94,16 +94,99 @@ async def run_sync_workflow(user_input: str, lane_mode: str = "auto", timeout: f
 # —— 提供给 router 的入口 ——
 def run_workflow_streaming(data: dict, state: SessionState):
     """在后台线程运行 LangGraph 流式工作流，通过 queue 推送到 SSE。"""
+    if state.awaiting_clarification:
+        _continue_after_clarify(data, state)
+    else:
+        _start_new_workflow(data, state)
+
+def _start_new_workflow(data: dict, state: SessionState):
+    user_input = data.get("message", "")
+    lane_mode = data.get("lane_mode", "auto")
+    
+    # Session内相似问题复用
+    if state.prev_classification and state.original_input == user_input:
+        result = state.prev_classification
+    else:
+        result = classify_with_embedding(user_input, lane_mode)
+        
+    task_type = result.get("task_type", "闲聊")
+    complexity = result.get("complexity", "低")
+    
+    # Bot 快车道（低复杂度/闲聊）不进行置信度分析和反问，直接执行
+    if complexity != "高" or task_type == "闲聊":
+        _execute_graph(user_input, lane_mode, result, state, data)
+        return
+        
+    # 只有 Planner 慢车道需要置信度判决
+    if result.get("final_confidence", 0.0) < 0.7:
+        question = generate_clarification(user_input, result.get("top2", []), result.get("reason", ""))
+        state.awaiting_clarification = True
+        state.clarification_round = 1
+        state.clarification_question = question
+        state.original_input = user_input
+        state.original_lane_mode = lane_mode
+        state.prev_classification = result
+        push(state, {"type": "clarify", "content": question})
+        # 不 push_done，SSE 保持打开等待用户回复
+        return
+        
+    _execute_graph(user_input, lane_mode, result, state, data)
+
+def _continue_after_clarify(data: dict, state: SessionState):
+    user_reply = data.get("message", "")
+    
+    if not user_reply.strip():
+        # 用户回复为空，视为放弃澄清，使用上一轮的默认结果
+        result = state.prev_classification
+    else:
+        result = reclassify_with_context(
+            state.original_input,
+            state.clarification_question,
+            user_reply,
+            state.original_lane_mode,
+        )
+        
+    if result.get("final_confidence", 0.0) < 0.7 and state.clarification_round < 2:
+        state.clarification_round += 1
+        question = generate_clarification(state.original_input, result.get("top2", []), result.get("reason", ""))
+        state.clarification_question = question
+        state.prev_classification = result
+        push(state, {"type": "clarify", "content": question})
+        return
+        
+    if result.get("final_confidence", 0.0) < 0.7:
+        # 已用尽反问轮次，直接返回保守回复，不走 graph
+        push(state, {
+            "type": "done",
+            "reply": "未能理解您的意图，请重新描述需求",
+            "thinking": [],
+            "task_type": "闲聊",
+        })
+        push_done(state)
+        state.awaiting_clarification = False
+        return
+        
+    state.awaiting_clarification = False
+    _execute_graph(state.original_input, state.original_lane_mode, result, state, data)
+
+def _execute_graph(user_input: str, lane_mode: str, classify_result: dict, state: SessionState, data: dict):
     try:
-        user_input = data.get("message", "")
-        lane_mode = data.get("lane_mode", "auto")
         project_id = data.get("project_id")
 
         logger.info("stream | start langgraph pipeline | input=%s | user=%s | project=%s", user_input[:60], state.user_id, project_id)
 
-        task_type, complexity, need_report = classify(user_input, lane_mode)
+        task_type = classify_result.get("task_type", "闲聊")
+        complexity = classify_result.get("complexity", "低")
+        need_report = classify_result.get("need_report", True)
+        
+        # 记录会话粘性
+        state.prev_task_type = task_type
+        
+        # 传入 confidence 和 task_type 供 graph routing 判断
+        state.prev_classification = classify_result
 
         pipeline_config = None
+        project_prompts = {}
         graph_source = "default"
         if project_id and getattr(state, "db", None):
             import json
@@ -114,6 +197,7 @@ def run_workflow_streaming(data: dict, state: SessionState):
                     config = json.loads(proj["agent_config"])
                     if isinstance(config, dict):
                         pipeline_config = config.get("pipeline")
+                        project_prompts = config.get("prompts", {})
                 except Exception as e:
                     logger.warning("stream | failed to parse agent_config: %s", e)
 
@@ -127,10 +211,18 @@ def run_workflow_streaming(data: dict, state: SessionState):
             graph_source = "default"
 
         logger.info(
-            "stream | graph selected | source=%s | project=%s | pipeline_nodes=%d",
+            "stream | graph selected | source=%s | project=%s | pipeline_nodes=%d | prompts=%d",
             graph_source, project_id,
             len(pipeline_config.get("nodes", [])) if pipeline_config else 0,
+            len(project_prompts),
         )
+
+        user_config = None
+        if getattr(state, "db", None) and state.user_id:
+            try:
+                user_config = state.db.get_user_config(state.user_id)
+            except Exception:
+                pass
 
         initial_state = StreamWorkflowState(
             session=state,
@@ -151,6 +243,9 @@ def run_workflow_streaming(data: dict, state: SessionState):
             total_elapsed_ms=0,
             web_search_enabled=data.get("web_search_enabled", False),
             web_search_results="",
+            project_id=project_id or "",
+            project_prompts=project_prompts,
+            user_config=user_config,
         )
 
         result_state = graph.invoke(initial_state)

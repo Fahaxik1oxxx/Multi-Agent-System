@@ -1,15 +1,35 @@
-import type { DragEvent } from 'react';
+import { useState, type DragEvent } from 'react';
 import { ALL_AGENTS } from '@/data/agents';
+import { PromptEditorDialog } from './PromptEditorDialog';
 
 const AGENTS = ALL_AGENTS.map(a => ({ name: a.key, icon: a.icon, color: a.color }));
 
-export function NodePalette() {
+interface NodePaletteProps {
+  projectId?: string;
+  prompts?: Record<string, string>;
+  onPromptsChange?: (prompts: Record<string, string>) => void;
+}
+
+export function NodePalette({ projectId, prompts, onPromptsChange }: NodePaletteProps) {
+  const [editingAgent, setEditingAgent] = useState<string | null>(null);
+
   const onDragStart = (event: DragEvent, type: string, agent?: string) => {
     event.dataTransfer.setData('application/reactflow-type', type);
     if (agent) {
       event.dataTransfer.setData('application/reactflow-agent', agent);
     }
     event.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handlePromptSave = (value: string) => {
+    if (!editingAgent || !onPromptsChange) return;
+    const updated = { ...prompts };
+    if (value) {
+      updated[editingAgent] = value;
+    } else {
+      delete updated[editingAgent];
+    }
+    onPromptsChange(updated);
   };
 
   return (
@@ -23,10 +43,17 @@ export function NodePalette() {
           key={agent.name}
           draggable
           onDragStart={(e) => onDragStart(e, 'agent', agent.name)}
+          onDoubleClick={() => setEditingAgent(agent.name)}
           className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-[#e5e7eb] bg-white cursor-grab mb-1.5 text-[0.78rem] font-medium text-[#1d1d1f] transition-shadow hover:shadow-sm hover:border-[#4f8cff] select-none"
+          title="双击编辑 System Prompt"
         >
           <span className="text-sm w-5 text-center">{agent.icon}</span>
           <span>{agent.name}</span>
+          {prompts?.[agent.name] && (
+            <span className="ml-auto text-[9px] text-[#4f8cff] bg-[#f0f4ff] px-1.5 py-0.5 rounded-full border border-[#4f8cff]/20">
+              自定义
+            </span>
+          )}
         </div>
       ))}
 
@@ -49,9 +76,20 @@ export function NodePalette() {
           💡 拖拽节点到画布<br />
           🔗 拖拽节点端口连线<br />
           🗑️ Delete/Backspace 删除<br />
-          👆 双击路由器编辑条件
+          👆 双击路由器编辑条件<br />
+          👆 双击 Agent 编辑提示词
         </p>
       </div>
+
+      {/* Prompt 编辑弹窗 */}
+      {editingAgent && (
+        <PromptEditorDialog
+          agentName={editingAgent}
+          promptValue={prompts?.[editingAgent] || ''}
+          onSave={handlePromptSave}
+          onClose={() => setEditingAgent(null)}
+        />
+      )}
     </div>
   );
 }
