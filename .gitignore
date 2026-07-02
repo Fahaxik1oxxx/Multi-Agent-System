@@ -6,7 +6,7 @@ __pycache__/
 # === 数据库文件（含用户/会话/向量数据，切勿提交） ===
 data.db
 rag/chroma_db/
-rag/documents/*/
+rag/documents/**
 
 # === 临时文件 ===
 **/coding/tmp_code_*/
@@ -28,6 +28,7 @@ node_modules/
 # === 输出产物（可重新运行生成） ===
 **/reports/
 **/chroma_db/
+frontend/dist/
 
 # === 环境变量 ===
 .env
@@ -37,3 +38,9 @@ node_modules/
 .idea/
 *.swp
 coding/*.pdf
+
+
+# === 其他 ===
+*.log
+TODO.md
+org_docs/

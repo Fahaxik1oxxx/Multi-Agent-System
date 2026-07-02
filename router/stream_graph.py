@@ -5,6 +5,7 @@
 import logging
 import re
 import operator
+import json
 import sys
 import os
 import datetime
@@ -44,12 +45,19 @@ class StreamWorkflowState(TypedDict):
     total_elapsed_ms: int
     web_search_enabled: bool
     web_search_results: str
+    project_id: str
+    project_prompts: dict
+    user_config: dict | None
 
 
 _MAX_FIX_CYCLES = 2
 
 
 def get_prompt(role: str, state: StreamWorkflowState) -> str:
+    project_prompts = state.get("project_prompts", {})
+    if project_prompts.get(role):
+        return project_prompts[role]
+
     default = SYSTEM_PROMPTS.get(role, "")
     session = state.get("session")
     if not session or getattr(session, "db", None) is None:
@@ -122,7 +130,7 @@ def _stream_llm(role: str, prompt: str, state: StreamWorkflowState, temperature:
     import time
     start_time = time.time()
     push(session, {"type": "agent_start", "name": role})
-    llm = create_llm(role, temperature=temperature)
+    llm = create_llm(role, temperature=temperature, user_config=state.get("user_config"))
     content = ""
     for chunk in llm.stream(prompt):
         if session.cancel.is_set():
@@ -221,7 +229,7 @@ def retriever_node(state: StreamWorkflowState) -> dict:
     if state.get("web_search_results"):
         prompt += f"联网搜索结果：{state['web_search_results']}\n"
     prompt += "\n请总结与任务最相关的信息。"
-    llm = create_llm("Retriever")
+    llm = create_llm("Retriever", user_config=state.get("user_config"))
     content = ""
     for chunk in llm.stream(prompt):
         if session.cancel.is_set():
@@ -425,7 +433,7 @@ def web_search_node(state: StreamWorkflowState) -> dict:
 
     # 用 LLM 提取搜索关键词
     try:
-        llm = create_llm("Bot", temperature=0)
+        llm = create_llm("Bot", temperature=0, user_config=state.get("user_config"))
         kw_prompt = (
             "你是一个搜索引擎关键词提取器。将用户的问题转化为 2-4 个搜索引擎关键词，"
             "用空格分隔。只输出关键词，不要任何其他文字。\n"

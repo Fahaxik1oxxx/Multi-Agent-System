@@ -6,6 +6,7 @@ import { Canvas } from '@/components/orchestra/Canvas';
 import { NodePalette } from '@/components/orchestra/NodePalette';
 import { toast } from 'sonner';
 import { Save, RotateCcw } from 'lucide-react';
+import { DEFAULT_PROMPTS } from '@/data/defaultPrompts';
 
 // ── Data model types ──
 
@@ -101,6 +102,7 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
   const [pipeline, setPipeline] = useState<PipelineConfig>(initialPipeline);
   const [pipelineKey, setPipelineKey] = useState(0);
   const [dirty, setDirty] = useState(false);
+  const [prompts, setPrompts] = useState<Record<string, string>>(initialData?.prompts || {});
   const mountSkipRef = useRef(true);
   const savedConfigIdRef = useRef<string | null>(null); // 防止重复创建配置
 
@@ -110,6 +112,22 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
     if (mountSkipRef.current) { mountSkipRef.current = false; return; }
     setDirty(true);
   }, []);
+
+  const handlePromptsChange = useCallback(async (newPrompts: Record<string, string>) => {
+    setPrompts(newPrompts);
+    setDirty(true);
+    if (typeof window !== 'undefined') {
+      const key = projectId ? `custom_prompts_${projectId}` : 'custom_prompts';
+      try {
+        localStorage.setItem(key, JSON.stringify(newPrompts));
+      } catch { /* ignore */ }
+    }
+    try {
+      await projectsApi.updateAgentConfig(projectId, { prompts: newPrompts });
+    } catch {
+      toast.error('提示词保存失败');
+    }
+  }, [projectId]);
 
   const agentCount = pipeline.nodes.filter(n => n.type === 'agent').length;
   const routerCount = pipeline.nodes.filter(n => n.type === 'router').length;
@@ -127,7 +145,9 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
           if (v === 'off' && agentStates[k]) agentStates[k] = 'off';
         }
       }
-      await projectsApi.updateAgentConfig(projectId, { pipeline: p, agent_states: agentStates });
+      const savePayload: any = { pipeline: p, agent_states: agentStates };
+      if (Object.keys(prompts).length > 0) savePayload.prompts = prompts;
+      await projectsApi.updateAgentConfig(projectId, savePayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-config', projectId] });
@@ -139,6 +159,7 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
           name: `编排配置 ${new Date().toLocaleTimeString('zh-CN')}`,
           agents: agentNames,
           pipeline: pipeline,
+          prompts: Object.keys(prompts).length > 0 ? prompts : undefined,
         }).then(res => { savedConfigIdRef.current = res.data?.id; }).catch(() => {});
       }
       toast.success('流水线已保存');
@@ -200,7 +221,7 @@ function OrchestrationEditor({ initialData, projectId, workspaceId }: { initialD
       {/* Body: palette + canvas */}
       <div className="flex flex-1 min-h-0">
         <div className="w-48 shrink-0 border-r border-[#eceef2] bg-white overflow-y-auto flex flex-col">
-          <NodePalette />
+          <NodePalette projectId={projectId} prompts={prompts} onPromptsChange={handlePromptsChange} />
         </div>
         <div className="flex-1">
           <Canvas key={pipelineKey} pipeline={pipeline} onChange={handlePipelineChange} />

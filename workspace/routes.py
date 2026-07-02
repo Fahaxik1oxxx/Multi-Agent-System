@@ -262,7 +262,8 @@ async def get_agent_config(
     return JSONResponse({
         "pipeline": config.get("pipeline", {}),
         "enabled_agents": enabled_agents,
-        "disabled_agents": disabled_agents
+        "disabled_agents": disabled_agents,
+        "prompts": config.get("prompts", {}),
     })
 
 
@@ -293,8 +294,8 @@ async def update_agent_config(
     except:
         config = {}
 
-    if "enabled_agents" not in data and "pipeline" not in data:
-        return JSONResponse({"error": "缺少 enabled_agents 或 pipeline 字段"}, status_code=422)
+    if not any(k in data for k in ("enabled_agents", "pipeline", "prompts")):
+        return JSONResponse({"error": "缺少 enabled_agents、pipeline 或 prompts 字段"}, status_code=422)
 
     if "enabled_agents" in data:
         enabled = data["enabled_agents"]
@@ -330,13 +331,21 @@ async def update_agent_config(
                 seen.add(a)
         config["enabled_agents"] = valid_agents
 
+    if "prompts" in data:
+        prompts = data["prompts"]
+        if not isinstance(prompts, dict):
+            return JSONResponse({"error": "prompts must be a dict"}, status_code=422)
+        config["prompts"] = prompts
+
     saved_pipeline = config.get("pipeline", {})
     pipeline_nodes = len(saved_pipeline.get("nodes", [])) if saved_pipeline else 0
     pipeline_edges = len(saved_pipeline.get("edges", [])) if saved_pipeline else 0
+    prompts_count = len(config.get("prompts", {}))
     logger.info(
-        "agent-config | saved | project=%s | user=%s | enabled_agents=%s | has_pipeline=%s | pipeline_nodes=%d | pipeline_edges=%d",
+        "agent-config | saved | project=%s | user=%s | enabled_agents=%s | has_pipeline=%s | pipeline_nodes=%d | pipeline_edges=%d | prompts=%d",
         project_id, user["user_id"], config.get("enabled_agents", []),
         "yes" if saved_pipeline else "no", pipeline_nodes, pipeline_edges,
+        prompts_count,
     )
 
     db.update_project(project_id, agent_config=json.dumps(config, ensure_ascii=False))

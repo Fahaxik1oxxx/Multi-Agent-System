@@ -184,8 +184,8 @@ class TestProjects:
             resp = client.delete(f"/api/projects/{proj_id}", headers=_auth(token))
             assert resp.status_code == 200
 
-    def test_agent_config_not_implemented(self):
-        """agent-config endpoints are NOT implemented — should return 404."""
+    def test_agent_config_basic(self):
+        """agent-config endpoints should return 200 with default values."""
         with TestClient(app) as client:
             token, _ = _register(client, "ag_cfg")
             ws_id = _create_workspace(client, token)
@@ -194,13 +194,19 @@ class TestProjects:
                 f"/api/projects/{proj_id}/agent-config",
                 headers=_auth(token),
             )
-            assert resp.status_code == 404, f"expected 404, got {resp.status_code}: {resp.json()}"
+            assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.json()}"
+            data = resp.json()
+            assert "enabled_agents" in data
+            assert "disabled_agents" in data
+            assert "pipeline" in data
+            assert "prompts" in data
+            assert isinstance(data["prompts"], dict)
             resp = client.put(
                 f"/api/projects/{proj_id}/agent-config",
                 json={"enabled_agents": ["Planner", "Coder"]},
                 headers=_auth(token),
             )
-            assert resp.status_code == 404, f"expected 404, got {resp.status_code}: {resp.json()}"
+            assert resp.status_code == 200, f"expected 200, got {resp.status_code}: {resp.json()}"
 
 
 # ─── Sessions ───────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ pytesseract>=0.3.10
 bcrypt>=4.0
 pyjwt>=2.0
 httpx>=0.28
+requests>=2.31
 scalar-fastapi
 slowapi>=0.1.9
 limits>=3.0

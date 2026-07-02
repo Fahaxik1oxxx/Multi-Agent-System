@@ -131,9 +131,15 @@ export function FilePreviewModal({ file, files, orgId, isOpen, onClose }: FilePr
         .catch((err) => setError(err?.response?.data?.error || '加载失败'))
         .finally(() => setLoading(false));
     } else if (type === 'pdf') {
-      // PDF: 直接用 API 路径，iframe src 可以直接请求后端 → 浏览器原生 PDF 渲染
-      setObjectUrl(`/api/orgs/${orgId}/files/${f.id}/download`);
-      setLoading(false);
+      apiClient.get(`/orgs/${orgId}/files/${f.id}/download`, { responseType: 'blob' })
+        .then((res) => {
+          const blob = new Blob([res.data as Blob], { type: f.mime_type || 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          objectUrlRef.current = url;
+          setObjectUrl(url);
+        })
+        .catch((err) => setError(err?.response?.data?.error || 'PDF 加载失败'))
+        .finally(() => setLoading(false));
     } else if (type === 'video') {
       apiClient.get(`/orgs/${orgId}/files/${f.id}/download`, { responseType: 'blob' })
         .then((res) => {

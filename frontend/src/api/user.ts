@@ -45,4 +45,7 @@ export const userApi = {
 
   deleteCustomModel: (key: string) =>
     apiClient.delete(`/user/custom-models/${key}`),
+
+  saveConfig: (data: { roles: Record<string, string> }) =>
+    apiClient.put('/user/config', data),
 };

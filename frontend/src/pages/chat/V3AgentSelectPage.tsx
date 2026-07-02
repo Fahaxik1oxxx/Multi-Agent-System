@@ -4,6 +4,7 @@ import { projectsApi, configsApi } from '@/api/projects';
 import { Check, Sparkles, Puzzle, FileCode, Bot, Loader2, Plus, FolderKanban, GitBranch, Braces, Pencil, Trash2, X, CheckCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ALL_AGENTS } from '@/data/agents';
+import { DEFAULT_PROMPTS } from '@/data/defaultPrompts';
 
 interface SavedConfig {
   id: string;
@@ -24,34 +25,25 @@ const PRESETS = [
 ];
 
 /* ─── Prompt 编辑器 ─── */
-const PROMPT_STORAGE_KEY = 'custom_prompts';
-
-const DEFAULT_PROMPTS: Record<string, string> = {
-  Planner: '你是高级项目经理。根据用户需求制定详细的执行计划。\n用编号列表列出执行步骤，每步含：目标、技术/工具、预期输出。\n最后一行必须是 \'task_type: coding\' 或 \'task_type: writing\' 或 \'task_type: analysis\'，表示任务类型。\n\n注意：执行环境仅支持 Python。如用户要求 C/Java/Rust 等语言，只规划到「编写代码片段」这一步，编译/运行由用户自行完成，task_type 标为 coding。\n如用户提问涉及最新资讯/实时信息/当前事件，首先使用 web_search 工具搜索获取最新数据。\n分析类任务（数据分析/CSV/Excel/统计/图表）→ task_type: analysis。',
-  Bot: '你是友好的 AI 助手。用简洁、自然的中文直接回答用户。\n闲聊时友善亲切；问答时准确清晰，不啰嗦。\n如果用户问及最新资讯、实时新闻、当前事件或你不确定的信息，使用 web_search 工具搜索后回答。\n如果是简单的编程问题（如「Hello World」「怎么写冒泡排序」），直接给出代码片段和简要说明，不要说「我帮你规划」之类的话。\n如果是知识性问题，直接给出准确简明的解释。\n绝对不要暴露任何内部角色名（Planner/Coder 等）。你就是普通助手。',
-  Retriever: '你是知识检索专家。你的**唯一职责**是从知识库中查找与任务相关的信息。\n使用 search_knowledge 工具查询知识库。\n\n铁律：\n- 你只能调用 search_knowledge，不得编写代码、不得写文件。\n- 如果搜索结果与当前任务完全不相关，必须明确回复「知识库中无相关内容，请使用自身知识完成任务」。\n- 如果找到相关信息，总结要点后交给下游角色处理。\n- 不要把检索结果原文全部贴出来——只贴最相关的 1-2 条摘要。',
-  Coder: '你是 Python 程序员（仅 Python）。你的核心职责是：**编写并执行代码**。\n\n1. 用 ```python ... ``` 代码块编写可直接执行的 Python 代码。\n2. 代码必须包含 print() 输出关键结果，用 assert 做验证。\n3. 如需要保存文件（图表/报告），使用 write_file 工具。\n4. 不要在代码块里写「建议」「如果」「可以」——给出确定的可执行代码。\n\n能力边界：你只能写 Python。如用户要 C/Java/Go 等语言，只提供代码片段 + 注释说明，末尾标注「需用户手动编译运行」。',
-  Writer: '你是专业文档撰写专家。根据 Planner 的计划和 Retriever 提供的资料撰写内容。\n使用 Markdown 格式输出，适当使用表格和列表。',
-  Executor: '你是代码执行专家。负责运行 Python 代码并返回执行结果。',
-  Tester: '你是高级 QA 评审工程师。审查下游输出是否满足用户的原始需求。\n\n核心原则：以「用户最初要什么」为标准，不以外观/格式为转移。\n对于代码：审查逻辑正确性、边界条件、实际可运行。\n对于报告/文章：审查内容是否真正回答了用户的问题。\n\n如果发现偏离用户原始需求，回复以 \'❌ 发现以下问题\' 开头。\n如果完全满足用户要求，回复以 \'✅ 评审全部通过\' 开头。',
-  Summarizer: '你是技术文档专家。汇总整个执行过程，生成简洁报告。\n\n原则：输出长度与任务体量成正比。\n简单任务（HelloWorld/示例）→ 2-3 段即可，不要过度结构化。\n复杂任务（完整项目/数据分析）→ 可用节/表/代码块详细展开。\n报告包含：任务概述、关键产出、评审结论。使用 Markdown。',
-};
-
-function loadCustomPrompts(): Record<string, string> {
-  try { return JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY) || '{}'); } catch { return {}; }
-}
-function saveCustomPrompts(prompts: Record<string, string>) {
-  localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(prompts));
+function storageKey(projectId?: string) {
+  return projectId ? `custom_prompts_${projectId}` : 'custom_prompts';
 }
 
-function PromptEditor() {
+function loadCustomPrompts(projectId?: string): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(storageKey(projectId)) || '{}'); } catch { return {}; }
+}
+function saveCustomPrompts(prompts: Record<string, string>, projectId?: string) {
+  localStorage.setItem(storageKey(projectId), JSON.stringify(prompts));
+}
+
+function PromptEditor({ projectId }: { projectId?: string }) {
   const [agent, setAgent] = useState('Planner');
   const [text, setText] = useState('');
 
   useEffect(() => {
-    const saved = loadCustomPrompts();
+    const saved = loadCustomPrompts(projectId);
     setText(saved[agent] || '');
-  }, [agent]);
+  }, [agent, projectId]);
 
   return (
     <div>
@@ -81,15 +73,15 @@ function PromptEditor() {
         <button className="btn btn-ghost btn-xs" style={{ borderRadius: '8px' }}
           onClick={() => {
             setText('');
-            const p = loadCustomPrompts();
-            if (agent in p) { delete p[agent]; saveCustomPrompts(p); }
+            const p = loadCustomPrompts(projectId);
+            if (agent in p) { delete p[agent]; saveCustomPrompts(p, projectId); }
             toast.success(`${agent} 已恢复默认`);
           }}>恢复默认</button>
         <button className="btn btn-xs"
           onClick={() => {
-            const p = loadCustomPrompts();
+            const p = loadCustomPrompts(projectId);
             if (text) { p[agent] = text; } else { delete p[agent]; }
-            saveCustomPrompts(p);
+            saveCustomPrompts(p, projectId);
             toast.success(`「${agent}」Prompt 已保存`);
           }}
           style={{ background: 'linear-gradient(135deg, #4f8cff, #6c5ce7)', color: '#fff', borderRadius: '8px', border: 'none' }}>
@@ -148,13 +140,18 @@ export function V3AgentSelectPage() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
 
-  const handleUseConfig = async (config: { id: string; name: string; agents: string[]; pipeline?: any }) => {
+  const handleUseConfig = async (config: { id: string; name: string; agents: string[]; pipeline?: any; prompts?: Record<string, string> }) => {
     if (!projectId) return;
     try {
-      await projectsApi.updateAgentConfig(projectId, {
-        enabled_agents: config.agents,
-        pipeline: config.pipeline || undefined,
-      });
+      if (config.prompts && Object.keys(config.prompts).length > 0) {
+        const merged = { ...loadCustomPrompts(projectId), ...config.prompts };
+        saveCustomPrompts(merged, projectId);
+      }
+      const localPrompts = loadCustomPrompts(projectId);
+      const payload: any = { enabled_agents: config.agents };
+      if (config.pipeline) payload.pipeline = config.pipeline;
+      if (Object.keys(localPrompts).length > 0) payload.prompts = localPrompts;
+      await projectsApi.updateAgentConfig(projectId, payload);
       navigate(`/v3/personal/${projectId}/chat`, { replace: true });
     } catch { toast.error('应用配置失败'); }
   };
@@ -205,7 +202,10 @@ export function V3AgentSelectPage() {
     const agents = PRESETS.find(p => p.id === selectedPreset)?.agents || ALL_AGENTS.map(a => a.key);
     setSaving(true);
     try {
-      await projectsApi.updateAgentConfig(projectId, agents);
+      const localPrompts = loadCustomPrompts(projectId);
+      const payload: any = { enabled_agents: agents };
+      if (Object.keys(localPrompts).length > 0) payload.prompts = localPrompts;
+      await projectsApi.updateAgentConfig(projectId, payload);
       navigate(`/v3/personal/${projectId}/chat`, { replace: true });
     } catch {
       toast.error('保存配置失败');
@@ -329,7 +329,7 @@ export function V3AgentSelectPage() {
               <span className="text-sm font-semibold text-[#1d1d1f]">System Prompt</span>
               <span className="text-[10px] text-[#b0b8c1] ml-1">为每个 Agent 自定义提示词</span>
             </div>
-            <PromptEditor />
+            <PromptEditor projectId={projectId} />
           </div>
 
           {/* 3. 已保存配置 */}
@@ -401,9 +401,11 @@ export function V3AgentSelectPage() {
           <button
             onClick={async () => {
               if (!projectId) return;
-              // 确保项目有基础配置（全部 Agent 启用）
               try {
-                await projectsApi.updateAgentConfig(projectId, ALL_AGENTS.map(a => a.key));
+                const localPrompts = loadCustomPrompts(projectId);
+                const payload: any = { enabled_agents: ALL_AGENTS.map(a => a.key) };
+                if (Object.keys(localPrompts).length > 0) payload.prompts = localPrompts;
+                await projectsApi.updateAgentConfig(projectId, payload);
               } catch { /* 已有配置则忽略 */ }
               navigate(`/v3/personal/${projectId}/chat`, { replace: true });
             }}

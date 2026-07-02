@@ -186,6 +186,7 @@ def _execute_graph(user_input: str, lane_mode: str, classify_result: dict, state
         state.prev_classification = classify_result
 
         pipeline_config = None
+        project_prompts = {}
         graph_source = "default"
         if project_id and getattr(state, "db", None):
             import json
@@ -196,6 +197,7 @@ def _execute_graph(user_input: str, lane_mode: str, classify_result: dict, state
                     config = json.loads(proj["agent_config"])
                     if isinstance(config, dict):
                         pipeline_config = config.get("pipeline")
+                        project_prompts = config.get("prompts", {})
                 except Exception as e:
                     logger.warning("stream | failed to parse agent_config: %s", e)
 
@@ -209,10 +211,18 @@ def _execute_graph(user_input: str, lane_mode: str, classify_result: dict, state
             graph_source = "default"
 
         logger.info(
-            "stream | graph selected | source=%s | project=%s | pipeline_nodes=%d",
+            "stream | graph selected | source=%s | project=%s | pipeline_nodes=%d | prompts=%d",
             graph_source, project_id,
             len(pipeline_config.get("nodes", [])) if pipeline_config else 0,
+            len(project_prompts),
         )
+
+        user_config = None
+        if getattr(state, "db", None) and state.user_id:
+            try:
+                user_config = state.db.get_user_config(state.user_id)
+            except Exception:
+                pass
 
         initial_state = StreamWorkflowState(
             session=state,
@@ -233,6 +243,9 @@ def _execute_graph(user_input: str, lane_mode: str, classify_result: dict, state
             total_elapsed_ms=0,
             web_search_enabled=data.get("web_search_enabled", False),
             web_search_results="",
+            project_id=project_id or "",
+            project_prompts=project_prompts,
+            user_config=user_config,
         )
 
         result_state = graph.invoke(initial_state)
